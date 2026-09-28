@@ -14,7 +14,7 @@ body {
   margin: 0;
   background: radial-gradient(1200px 600px at 20% -10%, #1a2438 0%, var(--bg) 60%);
   color: var(--text);
-  font-family: "Noto Sans Myanmar", "Pyidaungsu", system-ui, sans-serif;
+  font-family: "Pyidaungsu", "Noto Sans Myanmar", system-ui, sans-serif;
   min-height: 100vh;
 }
 .topbar {
@@ -161,3 +161,33 @@ body {
   .banner { margin: 12px 12px 0; }
   .layout { padding: 14px 12px; }
 }
+
+/* ---- generation loading ---- */
+.loading-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 44px 20px; gap: 16px;
+}
+.spinner {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--accent), rgba(212,175,55,0) 70%);
+  -webkit-mask: radial-gradient(farthest-side, transparent 60%, #000 61%);
+  mask: radial-gradient(farthest-side, transparent 60%, #000 61%);
+  animation: spin 0.9s linear infinite;
+  box-shadow: 0 0 32px rgba(212,175,55,0.25);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-title { font-size: 16px; font-weight: 700; }
+.loading-dots::after { content: ""; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots {
+  0% { content: ""; } 25% { content: "."; }
+  50% { content: ".."; } 75% { content: "..."; }
+}
+.loading-step { font-size: 13px; color: var(--muted); min-height: 20px; }
+.skeleton {
+  width: 100%; aspect-ratio: 16 / 7; border-radius: 12px;
+  border: 1px solid var(--border);
+  background: linear-gradient(100deg, var(--panel2) 40%, #263043 50%, var(--panel2) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
