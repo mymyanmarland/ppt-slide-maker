@@ -1,7 +1,23 @@
 "use strict";
-// Six visual themes for generated decks. Colors are hex without '#'.
+// Seven visual themes for generated decks. Colors are hex without '#'.
+// `glass` / `glassBorder` drive the glassmorphism card simulation in the pptx.
 
 const THEMES = {
+  "midnight-glass": {
+    name: "Midnight Glass",
+    nameMy: "မှန်ချပ် နက်ပြာ",
+    bg: "070D1A",
+    bgDeep: "04070F",
+    band: "12233D",
+    accent: "5EB1FF",
+    accentSoft: "A8D4FF",
+    title: "FFFFFF",
+    text: "DCE8F7",
+    muted: "8CA3C4",
+    footer: "54687F",
+    glass: "FFFFFF",
+    glassBorder: "2E435F",
+  },
   "navy-gold": {
     name: "Navy Gold",
     nameMy: "နက်ပြာ + ရွှေ",
@@ -14,6 +30,8 @@ const THEMES = {
     text: "E6E9F2",
     muted: "9AA3B8",
     footer: "5B6B8C",
+    glass: "FFFFFF",
+    glassBorder: "2C3D5E",
   },
   "minimal": {
     name: "Modern Minimal",
@@ -27,6 +45,8 @@ const THEMES = {
     text: "374151",
     muted: "6B7280",
     footer: "9CA3AF",
+    glass: "FFFFFF",
+    glassBorder: "D8DEE8",
   },
   "impact": {
     name: "Bold Impact",
@@ -40,6 +60,8 @@ const THEMES = {
     text: "D8DAE3",
     muted: "8E93A6",
     footer: "555A70",
+    glass: "FFFFFF",
+    glassBorder: "2E2E3A",
   },
   "corporate": {
     name: "Corporate Blue",
@@ -53,6 +75,8 @@ const THEMES = {
     text: "E3EDF9",
     muted: "9DB8D9",
     footer: "5E7FA6",
+    glass: "FFFFFF",
+    glassBorder: "2A5A94",
   },
   "myanmar": {
     name: "Myanmar Royal",
@@ -66,6 +90,8 @@ const THEMES = {
     text: "F3E3C2",
     muted: "D9B98A",
     footer: "A67C52",
+    glass: "FFFFFF",
+    glassBorder: "8A2A2A",
   },
   "violet": {
     name: "Violet Tech",
@@ -79,6 +105,8 @@ const THEMES = {
     text: "E2DCF7",
     muted: "A89CCF",
     footer: "6E6396",
+    glass: "FFFFFF",
+    glassBorder: "3D2C66",
   },
 };
 
