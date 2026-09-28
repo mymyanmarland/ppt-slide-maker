@@ -77,15 +77,26 @@ app.post("/api/generate", async (req, res) => {
     const useModel = model || c.model;
 
     // AI design director: invent a COMPLETELY NEW visual identity for this topic — never a template.
-    const rawDesign = await gw.chatCompletion(
-      c.baseUrl,
-      c.apiKey,
-      useModel,
-      gw.designSystemPrompt(cleanTopic, detail, useLang),
-      `Topic: ${cleanTopic}`,
-      { maxTokens: 900 }
-    );
-    const theme = design.normalizeDesign(gw.extractDeckJson(rawDesign), useLang);
+    // Anti-repetition: ban recently used palettes, rotate light themes in, high temperature, one retry if too close.
+    const recent = store.recentPalettes(8);
+    const wantLight = Math.random() < 0.3;
+    async function inventDesign(banned, light, temp) {
+      const rawDesign = await gw.chatCompletion(
+        c.baseUrl,
+        c.apiKey,
+        useModel,
+        gw.designSystemPrompt(cleanTopic, detail, useLang, { banned, light }),
+        `Topic: ${cleanTopic}`,
+        { maxTokens: 900, temperature: temp }
+      );
+      return design.normalizeDesign(gw.extractDeckJson(rawDesign), useLang);
+    }
+    let theme = await inventDesign(recent, wantLight, 1.1);
+    if (design.bgTooClose(theme.bg, recent)) {
+      const banned2 = recent.concat([{ bg: theme.bg, accent: theme.accent, name: theme.name }]);
+      const retry = await inventDesign(banned2, !wantLight, 1.25);
+      if (!design.bgTooClose(retry.bg, recent)) theme = retry;
+    }
     const designBrief =
       `VISUAL DIRECTION — this deck has a brand-new, one-of-a-kind visual identity. Make every choice serve it:\n` +
       `- Design name: "${theme.name}". Palette: background #${theme.bg} (deep #${theme.bgDeep}), signature accent #${theme.accent} (soft #${theme.accentSoft}), muted surface #${theme.band}.\n` +

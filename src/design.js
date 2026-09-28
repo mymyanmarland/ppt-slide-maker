@@ -66,4 +66,49 @@ function resolveTheme(t, legacyThemes) {
   return { ...FALLBACK_COLORS, name: "Fresh Design", titleStyle: "monument", corners: "soft", decor: "none", mood: "elegant", radius: 0.12, reason: "" };
 }
 
-module.exports = { normalizeDesign, resolveTheme, FALLBACK_COLORS, MOODS };
+function hexRgb(h) {
+  const s = String(h || "").replace("#", "");
+  return [parseInt(s.slice(0, 2), 16) || 0, parseInt(s.slice(2, 4), 16) || 0, parseInt(s.slice(4, 6), 16) || 0];
+}
+
+function hexDist(a, b) {
+  const [r1, g1, b1] = hexRgb(a), [r2, g2, b2] = hexRgb(b);
+  return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
+}
+
+// Hue-aware background similarity: two backgrounds are "too close" when they share
+// a similar hue AND similar lightness (or both are near-grayscale with similar lightness).
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  const l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const d = mx - mn;
+  const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  let h = 0;
+  if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0));
+  else if (mx === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+
+function bgTooClose(bg, recent) {
+  const [h1, s1, l1] = rgbToHsl(...hexRgb(bg));
+  return (recent || []).some((r) => {
+    if (!r || !r.bg) return false;
+    const [h2, s2, l2] = rgbToHsl(...hexRgb(r.bg));
+    const hueDiff = Math.abs(h1 - h2) > 180 ? 360 - Math.abs(h1 - h2) : Math.abs(h1 - h2);
+    const lightDiff = Math.abs(l1 - l2);
+    const dark1 = l1 < 0.16, dark2 = l2 < 0.16;
+    if (dark1 && dark2) {
+      // both very dark: need a clearly different hue to count as different
+      if (s1 < 0.12 || s2 < 0.12) return lightDiff < 0.1;
+      return hueDiff < 60 && lightDiff < 0.12;
+    }
+    if (s1 < 0.12 && s2 < 0.12) return lightDiff < 0.16; // both grayscale: compare lightness only
+    if (s1 < 0.12 || s2 < 0.12) return false; // one colorful, one gray -> different enough
+    return hueDiff < 32 && lightDiff < 0.2;
+  });
+}
+
+module.exports = { normalizeDesign, resolveTheme, FALLBACK_COLORS, MOODS, hexDist, bgTooClose };

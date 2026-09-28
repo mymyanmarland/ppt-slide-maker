@@ -95,6 +95,14 @@ function saveDeck({ title, topic, theme, lang, model, deck }) {
     .run(title, topic || "", theme || "", lang || "my", model || "", JSON.stringify(deck), Date.now());
   return Number(r.lastInsertRowid);
 }
+function recentPalettes(limit = 8) {
+  return db
+    .prepare(
+      "SELECT json_extract(deck_json, '$.design.theme.bg') AS bg, json_extract(deck_json, '$.design.accent') AS accent, json_extract(deck_json, '$.design.name') AS name FROM decks WHERE json_extract(deck_json, '$.design.accent') IS NOT NULL ORDER BY id DESC LIMIT ?"
+    )
+    .all(limit);
+}
+
 function listDecks(limit = 60) {
   return db
     .prepare(
@@ -122,6 +130,7 @@ module.exports = {
   getSecret,
   setSecret,
   saveDeck,
+  recentPalettes,
   listDecks,
   getDeck,
   deleteDeck,

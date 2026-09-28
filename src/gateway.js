@@ -281,13 +281,33 @@ function detailsSystemPrompt(topic, lang) {
 
 // Prompt for the "AI design director": invents a COMPLETELY NEW visual identity
 // for every deck — never picks from a list, never repeats a generic template.
-function designSystemPrompt(topic, detail, lang) {
+function designSystemPrompt(topic, detail, lang, opts) {
   const langLine = lang === "en"
     ? 'Write "name" and "reason" in English.'
     : '"name" နဲ့ "reason" ကို မြန်မာလို ရေးပါ (name က ၂-၄ လုံးပါတဲ့ ဆန်းသစ်တဲ့ နာမည်).';
+  const o = opts || {};
+  const banned = Array.isArray(o.banned) ? o.banned.filter((b) => b && b.bg) : [];
+  let variety = "";
+  if (banned.length) {
+    variety +=
+      "CRITICAL — these visual identities were used very recently. DO NOT repeat them or stay close to them:\n" +
+      banned.map((b) => `- "${b.name || "?"}": background #${b.bg}, accent #${b.accent || "?"}`).join("\n") +
+      "\nYour background hue family must be OBVIOUSLY different from every one above. " +
+      "If they are dark, go somewhere totally different.\n";
+  }
+  if (o.light) {
+    variety +=
+      "This time design a LIGHT theme: warm paper/cream background (e.g. #FAF6EF), dark ink text (#1A2333), " +
+      "one vivid accent. Make it feel editorial and premium — a striking change of pace.\n";
+  } else {
+    variety +=
+      "Background variety is the #1 priority: rotate between deep teal, charcoal black, warm cream, midnight blue, " +
+      "forest green, wine red, pure ink, sunset amber... NEVER default to purple/violet backgrounds.\n";
+  }
   return (
     "You are an award-winning presentation art director. Invent a COMPLETELY NEW, original visual identity for a slide deck about the topic below. " +
     "This must look like nothing the audience has seen before — a fresh design every single time.\n" +
+    variety +
     `Topic: ${topic}\n` +
     (detail ? `Extra context: ${String(detail).slice(0, 400)}\n` : "") +
     "Rules for originality:\n" +
