@@ -18,6 +18,10 @@ const I18N = {
     apiKeyPh: "ထည့်ပြီးသားရှိရင် အလွတ်ထားနိုင်", defaultModel: "ပုံသေမော်ဒယ်",
     testConn: "စမ်းသပ်ရန်", close: "ပိတ်ရန်", save: "သိမ်းရန်",
     generating: "AI က ရေးနေတယ်… ခဏစောင့်ပါ ⏳",
+    loadingTitle: "ဆလိုက်ထုတ်လုပ်နေတယ်",
+    loadStep1: "AI က အကြောင်းအရာရေးနေတယ်…",
+    loadStep2: "ဒီဇိုင်းနဲ့ layout ဆွဲနေတယ်…",
+    loadStep3: "PPTX ဖိုင်တည်ဆောက်နေတယ်…",
     genDone: "ပြီးပါပြီ ✅ — အစမ်းကြည့်ပြီး PPTX ဒေါင်းလုဒ်လုပ်နိုင်ပါပြီ။",
     errTopic: "အကြောင်းအရာ အရင်ရိုက်ပါ။",
     errKey: "API key မရှိသေးပါ။ ဆက်တင်မှာ ထည့်ပါ။",
@@ -44,6 +48,10 @@ const I18N = {
     apiKeyPh: "Leave blank to keep the existing one", defaultModel: "Default model",
     testConn: "Test connection", close: "Close", save: "Save",
     generating: "AI is writing… please wait ⏳",
+    loadingTitle: "Generating your deck",
+    loadStep1: "AI is writing the content…",
+    loadStep2: "Designing layouts and visuals…",
+    loadStep3: "Building the PPTX file…",
     genDone: "Done ✅ — preview it and download the PPTX.",
     errTopic: "Please enter a topic first.",
     errKey: "No API key. Add it in Settings.",
@@ -206,12 +214,39 @@ async function loadStatus() {
   }
 }
 
+let loadTimer = null;
+
+function showLoading() {
+  const steps = [t("loadStep1"), t("loadStep2"), t("loadStep3")];
+  let i = 0;
+  $("previewEmpty").classList.add("hidden");
+  $("downloadBtn").classList.add("hidden");
+  $("previewSlides").innerHTML =
+    `<div class="loading-wrap">
+       <div class="spinner"></div>
+       <div class="loading-title">${esc(t("loadingTitle"))}<span class="loading-dots"></span></div>
+       <div class="loading-step" id="loadingStep">${esc(steps[0])}</div>
+       <div class="skeleton"></div>
+       <div class="skeleton"></div>
+     </div>`;
+  loadTimer = setInterval(() => {
+    i = (i + 1) % steps.length;
+    const el = $("loadingStep");
+    if (el) el.textContent = steps[i];
+  }, 2600);
+}
+
+function hideLoading() {
+  if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
+}
+
 async function generate() {
   const topic = $("topic").value.trim();
   if (!topic) { setStatus(t("errTopic"), "error"); return; }
   const btn = $("generateBtn");
   btn.disabled = true;
   setStatus(t("generating"), "");
+  showLoading();
   try {
     const r = await fetch("/api/generate", {
       method: "POST",
@@ -227,6 +262,8 @@ async function generate() {
     });
     const d = await r.json();
     if (!r.ok) {
+      $("previewSlides").innerHTML = "";
+      $("previewEmpty").classList.remove("hidden");
       setStatus((d.error === "no-key" ? t("errKey") : t("errGen") + ": " + (d.error || "")) + (d.detail ? " — " + d.detail : ""), "error");
       return;
     }
@@ -235,8 +272,11 @@ async function generate() {
     setStatus(t("genDone"), "ok");
     renderGallery();
   } catch (e) {
+    $("previewSlides").innerHTML = "";
+    $("previewEmpty").classList.remove("hidden");
     setStatus(t("errGen") + ": " + String(e.message || e).slice(0, 200), "error");
   } finally {
+    hideLoading();
     btn.disabled = false;
   }
 }
