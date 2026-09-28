@@ -104,6 +104,25 @@ function esc(s) {
   return String(s || "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
 
+function bText(b) {
+  return b && typeof b === "object" ? String(b.text || "") : String(b || "");
+}
+function bIcon(b) {
+  return b && typeof b === "object" ? String(b.icon || "") : "";
+}
+function bulletLis(bullets) {
+  return (bullets || [])
+    .map((b) => {
+      const t = bText(b), ic = bIcon(b);
+      return t ? `<li>${ic ? `<span style="margin-right:6px">${esc(ic)}</span>` : ""}${esc(t)}</li>` : "";
+    })
+    .join("");
+}
+function takeawayHtml(tw, c) {
+  if (!tw || !tw.trim()) return "";
+  return `<div style="margin-top:14px;padding:10px 16px;border:1.5px solid #${c.accent};border-radius:999px;background:rgba(255,255,255,0.06);color:#${c.title};font-style:italic;font-size:clamp(10px,1.25vw,14px);line-height:1.4">✦&nbsp;&nbsp;${esc(tw.trim())}</div>`;
+}
+
 function layoutOf(item) {
   if (item.layout === "stats" && (item.stats || []).length >= 2) return "stats";
   if ((item.layout === "stat" || item.layout === "stats") && ((item.stats || []).length === 1 || (item.stat && item.stat.value))) return "stat";
@@ -136,8 +155,9 @@ function slideHtml(item, i, total, c, ui) {
   if (layout === "cards") {
     const pts = (item.points || []).length >= 2 ? item.points.slice(0, 3)
       : (item.bullets || []).slice(0, 3).map((b) => {
-          const m = String(b).split(/[:—–-]\s(.+)/);
-          return { icon: item.icon, title: m.length > 2 ? m[0].trim() : "", text: m.length > 2 ? m[1].trim() : b };
+          const t = bText(b);
+          const m = t.split(/[:—–-]\s(.+)/);
+          return { icon: bIcon(b) || item.icon, title: m.length > 2 ? m[0].trim() : "", text: m.length > 2 ? m[1].trim() : t };
         });
     const cards = pts.map((p) => `
       <div class="pv-glass" style="flex:1;padding:16px;min-width:0;text-align:center">
@@ -150,7 +170,7 @@ function slideHtml(item, i, total, c, ui) {
   }
   if (layout === "stat") {
     const st = (item.stats && item.stats[0]) || item.stat || {};
-    const bullets = (item.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("");
+    const bullets = bulletLis(item.bullets);
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}${head}
       <div style="display:flex;gap:24px;margin-top:4%;align-items:flex-start">
         <div class="pv-glass" style="padding:18px 22px;min-width:34%">
@@ -161,7 +181,7 @@ function slideHtml(item, i, total, c, ui) {
       </div></div>`;
   }
   if (layout === "quote") {
-    const quote = item.quote || (item.bullets || []).join(" ");
+    const quote = item.quote || (item.bullets || []).map(bText).join(" ");
     return `<div class="slide-card" style="background:#${c.bgDeep};color:#${c.text};justify-content:center;align-items:center;text-align:center">
       <div class="snum" style="color:#${c.footer}">${i + 1} / ${total}</div>
       <div style="font-size:90px;color:#${c.accent};line-height:0.6;margin-bottom:16px">&ldquo;</div>
@@ -171,21 +191,22 @@ function slideHtml(item, i, total, c, ui) {
   }
   if (layout === "two-col") {
     const mid = Math.ceil((item.bullets || []).length / 2);
-    const l = (item.bullets || []).slice(0, mid).map((b) => `<li>${esc(b)}</li>`).join("");
-    const r = (item.bullets || []).slice(mid).map((b) => `<li>${esc(b)}</li>`).join("");
+    const l = bulletLis((item.bullets || []).slice(0, mid));
+    const r = bulletLis((item.bullets || []).slice(mid));
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
       <div style="display:flex;gap:28px;margin-top:3%">
         <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.7">${l}</ul>
         <div style="width:2px;background:#${c.bgDeep};border-radius:1px"></div>
         <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.7">${r}</ul>
-      </div></div>`;
+      </div>${takeawayHtml(item.takeaway, c)}</div>`;
   }
-  const bullets = (item.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("");
+  const bullets = bulletLis(item.bullets);
   return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}
     <div class="snum" style="color:#${c.footer}">${i + 1} / ${total}</div>
     <div style="width:44px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:12px"></div>
     <h3 style="color:#${c.title}">${esc(item.heading)}</h3>
     <ul style="color:#${c.text}">${bullets}</ul>
+    ${takeawayHtml(item.takeaway, c)}
   </div>`;
 }
 
