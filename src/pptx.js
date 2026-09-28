@@ -12,15 +12,28 @@ const isLight = (theme) => theme.bgDeep === "F4F5F7";
 
 // ---- shared bits -----------------------------------------------------------
 
-// Soft ambient light washes for depth — subtle on purpose. Add FIRST so content sits above.
+// Soft ambient light: one accent-tinted glow + one neutral wash. Add FIRST.
 function ambient(slide, pptx, theme) {
   slide.addShape(pptx.ShapeType.ellipse, {
-    x: 8.6, y: -3.0, w: 7.6, h: 7.6,
-    fill: { color: theme.band, transparency: 78 }, line: { color: theme.band, transparency: 100 },
+    x: 8.2, y: -3.4, w: 8.0, h: 8.0,
+    fill: { color: theme.accent, transparency: 90 }, line: { color: theme.accent, transparency: 100 },
   });
   slide.addShape(pptx.ShapeType.ellipse, {
-    x: -3.0, y: 4.6, w: 6.0, h: 6.0,
-    fill: { color: theme.band, transparency: 88 }, line: { color: theme.band, transparency: 100 },
+    x: -3.2, y: 4.4, w: 6.4, h: 6.4,
+    fill: { color: theme.band, transparency: 82 }, line: { color: theme.band, transparency: 100 },
+  });
+}
+
+// Frosted glass card: translucent fill + hairline border + top sheen highlight.
+function glassCard(slide, pptx, theme, x, y, w, h, r) {
+  slide.addShape(pptx.ShapeType.roundRect, {
+    x, y, w, h, rectRadius: r == null ? 0.14 : r,
+    fill: { color: theme.glass || "FFFFFF", transparency: 90 },
+    line: { color: theme.glassBorder || theme.band, width: 1 },
+  });
+  slide.addShape(pptx.ShapeType.roundRect, {
+    x: x + 0.12, y: y + 0.07, w: Math.max(0.2, w - 0.24), h: 0.05, rectRadius: 0.025,
+    fill: { color: "FFFFFF", transparency: 72 }, line: { color: "FFFFFF", transparency: 100 },
   });
 }
 
@@ -154,9 +167,10 @@ function addBulletsSlide(pptx, theme, deck, idx, item) {
   topBar(s, pptx, theme);
   numberPill(s, pptx, theme, idx + 1);
   headingBlock(s, pptx, theme, item.heading);
+  glassCard(s, pptx, theme, 1.3, 1.7, 11.1, 4.9, 0.16);
   watermark(s, theme, item.icon);
   const runs = bulletRuns(item.bullets, theme, 18);
-  if (runs.length) s.addText(runs, { x: 1.5, y: 1.85, w: item.icon ? 8.7 : 10.2, h: 4.6, valign: "top" });
+  if (runs.length) s.addText(runs, { x: 1.75, y: 1.95, w: item.icon ? 8.35 : 9.85, h: 4.4, valign: "top" });
   if (item.notes) s.addNotes(item.notes);
   addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
 }
@@ -196,6 +210,82 @@ function addStatSlide(pptx, theme, deck, idx, item) {
   addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
 }
 
+// ---- NEW: feature cards (3 glass cards in a row, like a modern SaaS pitch) ----
+function addCardsSlide(pptx, theme, deck, idx, item) {
+  const s = pptx.addSlide();
+  s.background = { color: theme.bg };
+  ambient(s, pptx, theme);
+  topBar(s, pptx, theme);
+  numberPill(s, pptx, theme, idx + 1);
+  headingBlock(s, pptx, theme, item.heading);
+  const pts = item.points.length >= 2 ? item.points : (item.bullets || []).slice(0, 3).map((b) => {
+    const m = String(b).split(/[:—–-]\s(.+)/);
+    return { icon: item.icon, title: m.length > 2 ? m[0].trim() : "", text: m.length > 2 ? m[1].trim() : b };
+  });
+  const n = Math.min(3, pts.length);
+  const gap = 0.4, avail = 11.43, w = (avail - (n - 1) * gap) / n;
+  pts.slice(0, n).forEach((p, k) => {
+    const x = 0.95 + k * (w + gap), y = 2.0, h = 4.35;
+    glassCard(s, pptx, theme, x, y, w, h, 0.16);
+    let ty = y + 0.35;
+    if (p.icon) {
+      s.addText(p.icon, { x, y: ty, w, h: 0.7, align: "center", fontSize: 34, fontFace: "Segoe UI Emoji" });
+      ty += 0.75;
+    }
+    if (p.title) {
+      s.addText(p.title, {
+        x: x + 0.3, y: ty, w: w - 0.6, h: 0.9, align: "center",
+        fontSize: 16, bold: true, color: theme.title, fontFace: fontFor(p.title), lineSpacingMultiple: 1.1,
+      });
+      ty += 0.95;
+    }
+    if (p.text) {
+      s.addText(p.text, {
+        x: x + 0.3, y: ty, w: w - 0.6, h: h - (ty - y) - 0.3, align: "center",
+        fontSize: 13.5, color: theme.muted, fontFace: fontFor(p.text), lineSpacingMultiple: 1.25, valign: "top",
+      });
+    }
+  });
+  if (item.notes) s.addNotes(item.notes);
+  addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
+}
+
+// ---- NEW: stats grid (2-4 big numbers on glass cards) ----
+function addStatsSlide(pptx, theme, deck, idx, item) {
+  const s = pptx.addSlide();
+  s.background = { color: theme.bg };
+  ambient(s, pptx, theme);
+  topBar(s, pptx, theme);
+  numberPill(s, pptx, theme, idx + 1);
+  headingBlock(s, pptx, theme, item.heading);
+  const stats = item.stats.slice(0, 4);
+  const n = stats.length;
+  const cols = n <= 3 ? n : 2;
+  const rows = Math.ceil(n / cols);
+  const gapX = 0.4, gapY = 0.4, availW = 11.43, availH = 4.5;
+  const cw = (availW - (cols - 1) * gapX) / cols;
+  const ch = (availH - (rows - 1) * gapY) / rows;
+  stats.forEach((st, k) => {
+    const col = k % cols, row = Math.floor(k / cols);
+    const x = 0.95 + col * (cw + gapX), y = 1.95 + row * (ch + gapY);
+    glassCard(s, pptx, theme, x, y, cw, ch, 0.16);
+    s.addShape(pptx.ShapeType.rect, {
+      x: x + 0.3, y: y + 0.32, w: 0.5, h: 0.06,
+      fill: { color: theme.accent }, line: { color: theme.accent },
+    });
+    s.addText(st.value, {
+      x: x + 0.3, y: y + 0.5, w: cw - 0.6, h: ch * 0.52,
+      fontSize: Math.min(46, ch * 22), bold: true, color: theme.accent, fontFace: fontFor(st.value),
+    });
+    s.addText(st.label || "", {
+      x: x + 0.3, y: y + 0.5 + ch * 0.5, w: cw - 0.6, h: ch * 0.42, valign: "top",
+      fontSize: 13, color: theme.muted, fontFace: fontFor(st.label), lineSpacingMultiple: 1.2,
+    });
+  });
+  if (item.notes) s.addNotes(item.notes);
+  addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
+}
+
 function addTwoColSlide(pptx, theme, deck, idx, item) {
   const s = pptx.addSlide();
   s.background = { color: theme.bg };
@@ -207,14 +297,12 @@ function addTwoColSlide(pptx, theme, deck, idx, item) {
   const mid = Math.ceil(bullets.length / 2);
   const left = bullets.slice(0, mid);
   const right = bullets.slice(mid);
-  // vertical divider
-  s.addShape(pptx.ShapeType.rect, {
-    x: 6.6, y: 1.9, w: 0.04, h: 4.4, fill: { color: theme.band }, line: { color: theme.band },
-  });
-  const lr = bulletRuns(left, theme, 16);
-  const rr = bulletRuns(right, theme, 16);
-  if (lr.length) s.addText(lr, { x: 1.5, y: 1.9, w: 4.7, h: 4.4, valign: "top" });
-  if (rr.length) s.addText(rr, { x: 7.0, y: 1.9, w: 4.7, h: 4.4, valign: "top" });
+  glassCard(s, pptx, theme, 1.3, 1.8, 5.25, 4.6, 0.16);
+  glassCard(s, pptx, theme, 6.78, 1.8, 5.25, 4.6, 0.16);
+  const lr = bulletRuns(left, theme, 15);
+  const rr = bulletRuns(right, theme, 15);
+  if (lr.length) s.addText(lr, { x: 1.65, y: 2.05, w: 4.55, h: 4.1, valign: "top" });
+  if (rr.length) s.addText(rr, { x: 7.13, y: 2.05, w: 4.55, h: 4.1, valign: "top" });
   if (item.icon) {
     s.addText(item.icon, {
       x: 11.9, y: 6.2, w: 0.9, h: 0.9, align: "center", fontSize: 36, fontFace: "Segoe UI Emoji",
@@ -234,14 +322,15 @@ function addQuoteSlide(pptx, theme, deck, idx, item) {
     fill: { color: theme.band, transparency: 55 }, line: { color: theme.band, transparency: 100 },
   });
   numberPill(s, pptx, theme, idx + 1);
+  const quote = item.quote || item.bullets.join(" ") || item.heading;
+  glassCard(s, pptx, theme, 1.6, 2.15, 10.13, 3.35, 0.2);
   s.addText("\u201C", {
-    x: 1.5, y: 1.6, w: 10.3, h: 1.2, align: "center",
+    x: 1.5, y: 1.15, w: 10.3, h: 1.2, align: "center",
     fontSize: 110, bold: true, color: theme.accent, fontFace: "Calibri",
   });
-  const quote = item.quote || item.bullets.join(" ") || item.heading;
   s.addText(quote, {
-    x: 2.2, y: 2.9, w: 8.9, h: 2.4, align: "center",
-    fontSize: 26, italic: true, color: theme.title, fontFace: fontFor(quote), lineSpacingMultiple: 1.3,
+    x: 2.2, y: 2.75, w: 8.9, h: 2.1, align: "center",
+    fontSize: 25, italic: true, color: theme.title, fontFace: fontFor(quote), lineSpacingMultiple: 1.3,
   });
   if (item.quoteBy) {
     s.addShape(pptx.ShapeType.rect, {
@@ -322,14 +411,20 @@ async function buildPptx(deck, themeKey, lang = "my") {
 
   addTitleSlide(pptx, theme, deck, lang);
   deck.slides.forEach((item, i) => {
-    const layout = item.layout === "stat" && item.stat && item.stat.value
-      ? "stat"
-      : item.layout === "quote" && (item.quote || item.bullets.length)
-        ? "quote"
-        : item.layout === "two-col" && item.bullets.length > 2
-          ? "two-col"
-          : "bullets";
-    if (layout === "stat") addStatSlide(pptx, theme, deck, i, item);
+    const layout = item.layout === "stats" && item.stats.length >= 2
+      ? "stats"
+      : (item.layout === "stat" || item.layout === "stats") && (item.stats.length === 1 || (item.stat && item.stat.value))
+        ? "stat"
+        : item.layout === "cards" && (item.points.length >= 2 || item.bullets.length >= 2)
+          ? "cards"
+          : item.layout === "quote" && (item.quote || item.bullets.length)
+            ? "quote"
+            : item.layout === "two-col" && item.bullets.length > 2
+              ? "two-col"
+              : "bullets";
+    if (layout === "stats") addStatsSlide(pptx, theme, deck, i, item);
+    else if (layout === "stat") addStatSlide(pptx, theme, deck, i, item);
+    else if (layout === "cards") addCardsSlide(pptx, theme, deck, i, item);
     else if (layout === "quote") addQuoteSlide(pptx, theme, deck, i, item);
     else if (layout === "two-col") addTwoColSlide(pptx, theme, deck, i, item);
     else addBulletsSlide(pptx, theme, deck, i, item);
