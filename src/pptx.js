@@ -175,9 +175,9 @@ function styledBulletRuns(bullets, theme, fontSize, style) {
     if (!parts.length) return;
     const prefix =
       style === "numerals"
-        ? { text: String(i + 1).padStart(2, "0") + "   ", options: { fontSize: fontSize + 8, bold: true, color: theme.accent, fontFace: "Calibri" } }
+        ? { text: String(i + 1).padStart(2, "0") + "   ", options: { fontSize: fontSize + 6, bold: true, color: theme.accent, fontFace: "Calibri" } }
         : { text: "\u25AA  ", options: { fontSize: fontSize - 2, color: theme.accent, fontFace: "Calibri" } };
-    out.push({ text: prefix.text, options: { ...prefix.options, paraSpaceAfter: 14, lineSpacingMultiple: 1.6, breakLine: false } });
+    out.push({ text: prefix.text, options: { ...prefix.options, paraSpaceAfter: style === "numerals" ? 12 : 14, lineSpacingMultiple: 1.6, breakLine: false } });
     parts.forEach((pt, j) => {
       const last = j === parts.length - 1;
       // pptxgenjs starts a new paragraph only on `bullet` or breakLine:true — set it on each bullet's last run
@@ -223,16 +223,29 @@ function takeawayStrip(slide, pptx, theme, text, x, y, w) {
     fill: { color: theme.glass || "FFFFFF", transparency: 88 },
     line: { color: theme.accent, width: 1.25 },
   });
+  const fit = fitTakeaway(text, w);
   const base = {
-    fontSize: 16, italic: true, color: theme.title,
-    fontFace: fontFor(text), lineSpacingMultiple: 1.1,
+    fontSize: fit.fs, italic: true, color: theme.title,
+    fontFace: fontFor(fit.text), lineSpacingMultiple: 1.1,
   };
-  const runs = richText(text, theme, base);
+  const runs = richText(fit.text, theme, base);
   if (runs.length) runs[0].text = "✦  " + runs[0].text;
   slide.addText(runs.length ? runs : "", {
     x: x + 0.4, y: y + 0.02, w: w - 0.8, h: h - 0.04, valign: "middle",
     ...base,
   });
+}
+
+// Takeaway text fitted to its strip: shrink down to 11pt, then clamp to
+// 2 lines so a long takeaway can never spill out of the rounded rect.
+function fitTakeaway(text, w) {
+  const tw = Math.max(2, w - 0.8);
+  let fs = 16;
+  while (fs > 11 && (blockLines([text], tw, fs) * fs * 1.1 * SINGLE_LH) / 72 > 0.52) fs -= 0.5;
+  const maxChars = Math.max(10, Math.floor(cplFor(tw, fs) * 2) - 4); // room for "✦  "
+  let t = String(text || "");
+  if (t.length > maxChars) t = t.slice(0, Math.max(0, maxChars - 1)) + "…";
+  return { text: t, fs };
 }
 
 function addFooter(slide, pptx, theme, left, right) {
@@ -349,12 +362,32 @@ function linesFor(text, wIn, pt) {
 function blockLines(texts, wIn, pt) {
   return (texts || []).reduce((a, t) => a + linesFor(t, wIn, pt), 0);
 }
+// Effective line height = fontPt x lineSpacingMultiple x SINGLE.
+// Measured: OOXML spcPct is relative to "single" spacing, which renders at
+// ~1.2x font size (20pt @ 1.0 -> 24pt pitch; 20pt @ 1.6 -> 38.4pt pitch).
+const SINGLE_LH = 1.2;
+
+// Honest block height (real inches) for a bullet list.
+// The paragraph's base size comes from its FIRST run (pptxgenjs endParaRPr),
+// so EVERY wrapped line is spaced at that size: numerals -> (pt+6) digit,
+// rules -> (pt-2) marker, chips -> pt.
+function bulletsBlockH(bTexts, wIn, pt, style) {
+  const gap = style === "numerals" ? 12 : style === "chips" ? 8 : 14; // paraSpaceAfter per bullet
+  const base = style === "numerals" ? pt + 6 : style === "rules" ? pt - 2 : pt;
+  const lh = base * 1.6 * SINGLE_LH;
+  return (bTexts || []).reduce((a, t) => {
+    const lines = Math.max(1, Math.ceil(String(t || "").length / cplFor(wIn, pt)));
+    return a + (lines * lh + gap) / 72;
+  }, 0);
+}
 // Shrink pt (down to minPt) until the text block fits maxHIn inches tall.
+// Effective line height = pt x lineH x 1.2 (OOXML spcPct is relative to single
+// spacing ~= 1.2x font size); pt -> inch is /72.
 function fitPt(texts, wIn, basePt, maxHIn, minPt, lineH) {
   const arr = Array.isArray(texts) ? texts : [texts];
   let pt = basePt;
-  const lh = lineH || 1.5;
-  while (pt > (minPt || 11) && (blockLines(arr, wIn, pt) * pt * lh) / 96 > maxHIn) pt -= 0.5;
+  const lh = (lineH || 1.5) * SINGLE_LH;
+  while (pt > (minPt || 11) && (blockLines(arr, wIn, pt) * pt * lh) / 72 > maxHIn) pt -= 0.5;
   return pt;
 }
 // Hard-clamp text to the chars that fit maxLines at pt.
@@ -498,12 +531,22 @@ function addBulletsSlide(pptx, theme, deck, idx, item) {
   const hasTakeaway = !!(item.takeaway && item.takeaway.trim());
   const nBullets = (item.bullets || []).length;
   // Type scale is 16-18pt: step down as density rises so 1.6 line-height always fits.
-  // Width-aware: shrink further until the list fits its box when side art narrows it.
+  // Width-aware: shrink until the list honestly fits its own text box — the
+  // estimator accounts for the big numeral prefix (+8pt first line) and the
+  // paragraph gap after every bullet, which the old math ignored (overflow!).
   let fs = hasTakeaway ? (nBullets > 4 ? 16 : 17) : (nBullets > 4 ? 17 : 18);
   {
     const bTexts = (item.bullets || []).map((b) => (typeof btext === "function" ? btext(b) : String((b && b.text) || b || "")));
-    const listW = Math.max(3, bw - 2.6), listH = hasTakeaway ? 3.9 : 4.4;
-    while (fs > 11 && (blockLines(bTexts, listW, fs) * fs * 1.6) / 96 > listH) fs -= 1;
+    const iconNarrow = item.icon && !sideArt;
+    const listW =
+      bs === "numerals" ? Math.max(3, bw - (iconNarrow ? 3.43 : 1.93))
+      : bs === "rules" ? Math.max(3, bw - (iconNarrow ? 3.08 : 1.1))
+      : Math.max(3, bw - (iconNarrow ? 3.08 : 1.58));
+    const listH =
+      bs === "numerals" ? (hasTakeaway ? 4.0 : 4.35)
+      : bs === "rules" ? (hasTakeaway ? 3.7 : 4.0)
+      : (hasTakeaway ? 4.0 : 4.6);
+    while (fs > 10 && bulletsBlockH(bTexts, listW, fs, bs) > listH) fs -= 1;
   }
   if (bs === "chips") {
     glassCard(s, pptx, theme, bx + 0.35, 1.65, bw - 0.33, 5.1, 0.16);

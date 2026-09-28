@@ -117,9 +117,40 @@ function bulletLis(bullets, c, style) {
     })
     .join("");
 }
-function takeawayHtml(tw, c) {
+function takeawayHtml(tw, c, narrow) {
   if (!tw || !tw.trim()) return "";
-  return `<div style="margin-top:14px;padding:10px 16px;border:1.5px solid #${c.accent};border-radius:999px;background:rgba(255,255,255,0.06);color:#${c.title};font-style:italic;font-size:clamp(11px,1.4vw,16px);line-height:1.4">✦&nbsp;&nbsp;${hl(tw.trim(), `#${c.accent}`)}</div>`;
+  return `<div style="margin-top:14px;padding:10px 16px;border:1.5px solid #${c.accent};border-radius:999px;background:rgba(255,255,255,0.06);color:#${c.title};font-style:italic;font-size:clamp(11px,1.4vw,16px);line-height:1.4">✦&nbsp;&nbsp;${hl(pvFitTakeaway(tw.trim(), narrow), `#${c.accent}`)}</div>`;
+}
+// Mirror of the server's fitTakeaway(): clamp the takeaway to ~2 lines so the
+// preview never shows more text than the PPTX strip can hold.
+function pvFitTakeaway(text, narrow) {
+  const t = String(text || "");
+  const maxChars = narrow ? 95 : 150;
+  return t.length > maxChars ? t.slice(0, maxChars - 1) + "…" : t;
+}
+// Mirror of the server's bulletsBlockH(): how many pt the bullet list needs,
+// so the preview shrinks dense lists exactly like the PPTX does.
+// Effective line height = fontPt x 1.6 x 1.2 (OOXML spcPct is relative to
+// single spacing ~= 1.2x font size); the paragraph base size comes from its
+// first run: numerals -> (fs+6), rules -> (fs-2), chips -> fs.
+function pvBulletsFs(bullets, bs, hasTakeaway) {
+  const n = (bullets || []).length;
+  const base = hasTakeaway ? (n > 4 ? 16 : 17) : (n > 4 ? 17 : 18);
+  const cpl = (wIn, pt) => Math.max(6, (wIn * 96) / (pt * 0.85));
+  const listW = 9.5, listH = hasTakeaway ? 4.0 : 4.4;
+  const gap = bs === "numerals" ? 12 : bs === "chips" ? 8 : 14;
+  let fs = base;
+  const bTexts = (bullets || []).map(bText);
+  while (fs > 10) {
+    const f = bs === "numerals" ? fs + 6 : bs === "rules" ? fs - 2 : fs;
+    const h = bTexts.reduce((a, t) => {
+      const lines = Math.max(1, Math.ceil(String(t || "").length / cpl(listW, fs)));
+      return a + (lines * f * 1.6 * 1.2 + gap) / 72;
+    }, 0);
+    if (h <= listH) break;
+    fs -= 1;
+  }
+  return { fs, scale: fs / base };
 }
 
 function layoutOf(item) {
@@ -329,15 +360,17 @@ function slideHtml(item, i, total, c, ui, artworks) {
   }
   const bs = c.bulletStyle || "chips";
   const bullets = bulletLis(item.bullets, c, bs);
+  const pvFit = pvBulletsFs(item.bullets, bs, !!(item.takeaway && item.takeaway.trim()));
+  const pvListFs = pvFit.scale < 0.999 ? `font-size:calc(clamp(11px,1.4vw,16px) * ${pvFit.scale.toFixed(3)});` : `font-size:clamp(11px,1.4vw,16px);`;
   const listWrap =
     bs === "chips"
-      ? `<div class="pv-glass" style="padding:16px 20px;margin-top:4%"><ul style="color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul></div>`
+      ? `<div class="pv-glass" style="padding:16px 20px;margin-top:4%"><ul style="color:#${c.text};margin:0;padding-left:20px;${pvListFs}line-height:1.6">${bullets}</ul></div>`
       : bs === "numerals"
-      ? `<div style="border-left:4px solid #${c.accent};padding-left:20px;margin-top:4%"><ul style="color:#${c.text};margin:0;padding:0;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul></div>`
-      : `<div style="border-top:2px solid #${c.band};border-bottom:2px solid #${c.band};padding:14px 0;margin-top:4%"><ul style="color:#${c.text};margin:0;padding:0;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul></div>`;
+      ? `<div style="border-left:4px solid #${c.accent};padding-left:20px;margin-top:4%"><ul style="color:#${c.text};margin:0;padding:0;${pvListFs}line-height:1.6">${bullets}</ul></div>`
+      : `<div style="border-top:2px solid #${c.band};border-bottom:2px solid #${c.band};padding:14px 0;margin-top:4%"><ul style="color:#${c.text};margin:0;padding:0;${pvListFs}line-height:1.6">${bullets}</ul></div>`;
   const bArt = artInfo(item, artworks);
   const bHead = bArt && bArt.at !== "bg" ? headHtml(c, i, total, item.heading) : iconBg + headHtml(c, i, total, item.heading);
-  return withArt(bHead, `${listWrap}${takeawayHtml(item.takeaway, c)}`, bArt, c, `background:#${c.bg};color:#${c.text}`);
+  return withArt(bHead, `${listWrap}${takeawayHtml(item.takeaway, c, !!(bArt && bArt.at !== "bg"))}`, bArt, c, `background:#${c.bg};color:#${c.text}`);
 }
 
 function renderPreview(deck, theme, lang, designChoice) {
