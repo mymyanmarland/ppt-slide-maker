@@ -10,6 +10,22 @@ const MY_RE = /[\u1000-\u109F]/;
 const fontFor = (s) => (MY_RE.test(String(s || "")) ? "Pyidaungsu" : "Calibri");
 const isLight = (theme) => theme.bgDeep === "F4F5F7";
 
+// ---- typography system ------------------------------------------------------
+// Headings: Bold (700), tight letter-spacing (-0.02em), line-height 1.1
+//   H1 44pt (title slide) / H2 32pt (content headings) / H3 24pt (subtitle, card titles)
+// Body: Regular (400), 16-18pt, line-height 1.6, letter-spacing 0, bullet "•"
+//   (Medium 500 is not expressible in pptx — emphasis is done via italic/color)
+// Caption: Regular, 12pt, #9CA3AF gray, italic (footers, attributions, dates)
+const CAPTION_COLOR = "9CA3AF";
+const tight = (pt) => Math.round(pt * -0.02 * 10) / 10; // -0.02em expressed in points
+const T = {
+  h1: (color) => ({ fontSize: 44, bold: true, color, charSpacing: tight(44), lineSpacingMultiple: 1.1 }),
+  h2: (color) => ({ fontSize: 32, bold: true, color, charSpacing: tight(32), lineSpacingMultiple: 1.1 }),
+  h3: (color) => ({ fontSize: 24, bold: true, color, charSpacing: tight(24), lineSpacingMultiple: 1.1 }),
+  quote: (color) => ({ fontSize: 24, italic: true, color, lineSpacingMultiple: 1.3 }),
+  caption: () => ({ fontSize: 12, italic: true, color: CAPTION_COLOR }),
+};
+
 // ---- shared bits -----------------------------------------------------------
 
 // Soft ambient light: one accent-tinted glow + one neutral wash. Add FIRST.
@@ -57,7 +73,7 @@ function numberPill(slide, pptx, theme, n) {
 function headingBlock(slide, pptx, theme, heading) {
   slide.addText(heading || "", {
     x: 1.5, y: 0.32, w: 11.3, h: 1.1,
-    fontSize: 30, bold: true, color: theme.title, fontFace: fontFor(heading), valign: "middle",
+    ...T.h2(theme.title), fontFace: fontFor(heading), valign: "middle",
   });
   slide.addShape(pptx.ShapeType.rect, {
     x: 1.52, y: 1.32, w: 1.1, h: 0.05, fill: { color: theme.accent }, line: { color: theme.accent },
@@ -88,8 +104,8 @@ function bulletRuns(bullets, theme, fontSize = 18) {
         color: theme.text,
         fontFace: fontFor(b.text),
         bullet: { code: "2022", color: theme.accent, indent: 20 },
-        paraSpaceAfter: 14,
-        lineSpacingMultiple: 1.25,
+        paraSpaceAfter: 8,
+        lineSpacingMultiple: 1.6,
         breakLine: i < arr.length - 1,
       },
     }));
@@ -114,7 +130,7 @@ function takeawayStrip(slide, pptx, theme, text, x, y, w) {
   });
   slide.addText("✦  " + text, {
     x: x + 0.4, y: y + 0.02, w: w - 0.8, h: h - 0.04, valign: "middle",
-    fontSize: 13.5, italic: true, color: theme.title, fontFace: fontFor(text), lineSpacingMultiple: 1.1,
+    fontSize: 16, italic: true, color: theme.title, fontFace: fontFor(text), lineSpacingMultiple: 1.1,
   });
 }
 
@@ -124,11 +140,11 @@ function addFooter(slide, pptx, theme, left, right) {
   });
   slide.addText(String(left || ""), {
     x: 0.5, y: 7.02, w: 8, h: 0.3,
-    fontSize: 9, color: theme.footer, fontFace: fontFor(left),
+    ...T.caption(), fontFace: fontFor(left),
   });
   slide.addText(String(right || ""), {
     x: 11.5, y: 7.02, w: 1.33, h: 0.3, align: "right",
-    fontSize: 9, color: theme.footer, fontFace: "Calibri",
+    ...T.caption(), fontFace: "Calibri",
   });
 }
 
@@ -170,12 +186,12 @@ function addTitleSlide(pptx, theme, deck, lang) {
   });
   s.addText(deck.title || "", {
     x: 0.9, y: 2.42, w: 8.6, h: 2.35,
-    fontSize: 46, bold: true, color: theme.title, fontFace: fontFor(deck.title), lineSpacingMultiple: 1.04,
+    ...T.h1(theme.title), fontFace: fontFor(deck.title),
   });
   if (deck.subtitle) {
     s.addText(deck.subtitle, {
       x: 0.9, y: 4.9, w: 8.6, h: 1.2,
-      fontSize: 18, color: theme.muted, fontFace: fontFor(deck.subtitle), lineSpacingMultiple: 1.15,
+      ...T.h3(theme.title), fontFace: fontFor(deck.subtitle),
     });
   }
   const dateStr = new Date().toLocaleDateString(lang === "en" ? "en-US" : "my-MM", {
@@ -186,7 +202,7 @@ function addTitleSlide(pptx, theme, deck, lang) {
   });
   s.addText(dateStr, {
     x: 0.9, y: 6.55, w: 6, h: 0.4,
-    fontSize: 11, color: theme.footer, fontFace: "Calibri",
+    ...T.caption(), fontFace: "Calibri",
   });
 }
 
@@ -197,13 +213,16 @@ function addBulletsSlide(pptx, theme, deck, idx, item) {
   topBar(s, pptx, theme);
   numberPill(s, pptx, theme, idx + 1);
   headingBlock(s, pptx, theme, item.heading);
-  glassCard(s, pptx, theme, 1.3, 1.7, 11.1, 4.9, 0.16);
+  glassCard(s, pptx, theme, 1.3, 1.65, 11.1, 5.1, 0.16);
   watermark(s, theme, item.icon);
   const hasTakeaway = !!(item.takeaway && item.takeaway.trim());
-  const runs = bulletRuns(item.bullets, theme, 18);
+  const nBullets = (item.bullets || []).length;
+  // Type scale is 16-18pt: step down as density rises so 1.6 line-height always fits.
+  const fs = hasTakeaway ? (nBullets > 4 ? 16 : 17) : (nBullets > 4 ? 17 : 18);
+  const runs = bulletRuns(item.bullets, theme, fs);
   if (runs.length)
-    s.addText(runs, { x: 1.75, y: 1.95, w: item.icon ? 8.35 : 9.85, h: hasTakeaway ? 3.5 : 4.4, valign: "top" });
-  if (hasTakeaway) takeawayStrip(s, pptx, theme, item.takeaway.trim(), 1.6, 5.68, 10.5);
+    s.addText(runs, { x: 1.75, y: 1.9, w: item.icon ? 8.35 : 9.85, h: hasTakeaway ? 4.0 : 4.6, valign: "top" });
+  if (hasTakeaway) takeawayStrip(s, pptx, theme, item.takeaway.trim(), 1.6, 5.98, 10.5);
   if (item.notes) s.addNotes(item.notes);
   addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
 }
@@ -231,7 +250,7 @@ function addStatSlide(pptx, theme, deck, idx, item) {
     });
     s.addText(item.stat.label || "", {
       x: 1.85, y: 3.25, w: 4.0, h: 1.0,
-      fontSize: 15, color: theme.muted, fontFace: fontFor(item.stat.label), lineSpacingMultiple: 1.15,
+      fontSize: 16, color: theme.text, fontFace: fontFor(item.stat.label), lineSpacingMultiple: 1.6,
     });
     const runs = bulletRuns(item.bullets, theme, 16);
     if (runs.length) s.addText(runs, { x: 6.7, y: 1.9, w: 5.1, h: 4.4, valign: "top" });
@@ -269,14 +288,14 @@ function addCardsSlide(pptx, theme, deck, idx, item) {
     if (p.title) {
       s.addText(p.title, {
         x: x + 0.3, y: ty, w: w - 0.6, h: 0.9, align: "center",
-        fontSize: 16, bold: true, color: theme.title, fontFace: fontFor(p.title), lineSpacingMultiple: 1.1,
+        ...T.h3(theme.title), fontFace: fontFor(p.title),
       });
       ty += 0.95;
     }
     if (p.text) {
       s.addText(p.text, {
         x: x + 0.3, y: ty, w: w - 0.6, h: h - (ty - y) - 0.3, align: "center",
-        fontSize: 13.5, color: theme.muted, fontFace: fontFor(p.text), lineSpacingMultiple: 1.25, valign: "top",
+        fontSize: 16, color: theme.text, fontFace: fontFor(p.text), lineSpacingMultiple: 1.6, valign: "top",
       });
     }
   });
@@ -308,12 +327,12 @@ function addStatsSlide(pptx, theme, deck, idx, item) {
       fill: { color: theme.accent }, line: { color: theme.accent },
     });
     s.addText(st.value, {
-      x: x + 0.3, y: y + 0.5, w: cw - 0.6, h: ch * 0.52,
-      fontSize: Math.min(46, ch * 22), bold: true, color: theme.accent, fontFace: fontFor(st.value),
+      x: x + 0.3, y: y + 0.25, w: cw - 0.6, h: 0.7,
+      fontSize: Math.min(40, ch * 20), bold: true, color: theme.accent, fontFace: fontFor(st.value),
     });
     s.addText(st.label || "", {
-      x: x + 0.3, y: y + 0.5 + ch * 0.5, w: cw - 0.6, h: ch * 0.42, valign: "top",
-      fontSize: 13, color: theme.muted, fontFace: fontFor(st.label), lineSpacingMultiple: 1.2,
+      x: x + 0.3, y: y + 1.0, w: cw - 0.6, h: Math.max(0.85, ch - 1.2), valign: "top",
+      fontSize: 16, color: theme.text, fontFace: fontFor(st.label), lineSpacingMultiple: 1.6,
     });
   });
   if (item.notes) s.addNotes(item.notes);
@@ -335,8 +354,8 @@ function addTwoColSlide(pptx, theme, deck, idx, item) {
   const panelH = hasTakeaway ? 3.9 : 4.6;
   glassCard(s, pptx, theme, 1.3, 1.8, 5.25, panelH, 0.16);
   glassCard(s, pptx, theme, 6.78, 1.8, 5.25, panelH, 0.16);
-  const lr = bulletRuns(left, theme, 15);
-  const rr = bulletRuns(right, theme, 15);
+  const lr = bulletRuns(left, theme, 16);
+  const rr = bulletRuns(right, theme, 16);
   const textH = hasTakeaway ? 3.35 : 4.1;
   if (lr.length) s.addText(lr, { x: 1.65, y: 2.05, w: 4.55, h: textH, valign: "top" });
   if (rr.length) s.addText(rr, { x: 7.13, y: 2.05, w: 4.55, h: textH, valign: "top" });
@@ -368,7 +387,7 @@ function addQuoteSlide(pptx, theme, deck, idx, item) {
   });
   s.addText(quote, {
     x: 2.2, y: 2.75, w: 8.9, h: 2.1, align: "center",
-    fontSize: 25, italic: true, color: theme.title, fontFace: fontFor(quote), lineSpacingMultiple: 1.3,
+    ...T.quote(theme.title), fontFace: fontFor(quote),
   });
   if (item.quoteBy) {
     s.addShape(pptx.ShapeType.rect, {
@@ -376,7 +395,7 @@ function addQuoteSlide(pptx, theme, deck, idx, item) {
     });
     s.addText("— " + item.quoteBy, {
       x: 2.2, y: 5.7, w: 8.9, h: 0.6, align: "center",
-      fontSize: 15, color: theme.muted, fontFace: fontFor(item.quoteBy),
+      ...T.caption(), fontFace: fontFor(item.quoteBy),
     });
   }
   if (item.notes) s.addNotes(item.notes);
@@ -397,19 +416,19 @@ function addClosingSlide(pptx, theme, deck, lang) {
   const thanks = lang === "en" ? "Thank You" : "ကျေးဇူးတင်ပါတယ်";
   s.addText(thanks, {
     x: 1.5, y: 3.0, w: 10.33, h: 1.3, align: "center",
-    fontSize: 52, bold: true, color: theme.title, fontFace: fontFor(thanks),
+    ...T.h1(theme.title), fontFace: fontFor(thanks),
   });
   s.addShape(pptx.ShapeType.rect, {
     x: 6.16, y: 4.45, w: 1.0, h: 0.07, fill: { color: theme.accent }, line: { color: theme.accent },
   });
   s.addText(deck.title || "", {
     x: 1.5, y: 4.7, w: 10.33, h: 1.0, align: "center",
-    fontSize: 20, color: theme.muted, fontFace: fontFor(deck.title),
+    fontSize: 18, color: theme.text, fontFace: fontFor(deck.title), lineSpacingMultiple: 1.6,
   });
   const q = lang === "en" ? "Questions & Discussion" : "မေးခွန်းများ နှင့် ဆွေးနွေးခန်း";
   s.addText(q, {
     x: 1.5, y: 5.8, w: 10.33, h: 0.6, align: "center",
-    fontSize: 15, italic: true, color: theme.accentSoft, fontFace: fontFor(q),
+    fontSize: 16, italic: true, color: theme.accentSoft, fontFace: fontFor(q),
   });
 }
 

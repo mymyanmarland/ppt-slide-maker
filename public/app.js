@@ -120,7 +120,7 @@ function bulletLis(bullets) {
 }
 function takeawayHtml(tw, c) {
   if (!tw || !tw.trim()) return "";
-  return `<div style="margin-top:14px;padding:10px 16px;border:1.5px solid #${c.accent};border-radius:999px;background:rgba(255,255,255,0.06);color:#${c.title};font-style:italic;font-size:clamp(10px,1.25vw,14px);line-height:1.4">✦&nbsp;&nbsp;${esc(tw.trim())}</div>`;
+  return `<div style="margin-top:14px;padding:10px 16px;border:1.5px solid #${c.accent};border-radius:999px;background:rgba(255,255,255,0.06);color:#${c.title};font-style:italic;font-size:clamp(11px,1.4vw,16px);line-height:1.4">✦&nbsp;&nbsp;${esc(tw.trim())}</div>`;
 }
 
 function layoutOf(item) {
@@ -135,7 +135,7 @@ function layoutOf(item) {
 function slideHtml(item, i, total, c, ui) {
   const layout = layoutOf(item);
   const head =
-    `<div class="snum" style="color:#${c.footer}">${i + 1} / ${total}</div>` +
+    `<div class="snum">${i + 1} / ${total}</div>` +
     `<div style="width:44px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:12px"></div>` +
     `<h3 style="color:#${c.title}">${esc(item.heading)}</h3>`;
   const iconBg = item.icon
@@ -147,7 +147,7 @@ function slideHtml(item, i, total, c, ui) {
       <div class="pv-glass" style="flex:1;padding:14px 16px;min-width:0">
         <div style="width:22px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:10px"></div>
         <div style="font-size:clamp(24px,3vw,40px);font-weight:800;color:#${c.accent};line-height:1">${esc(st.value)}</div>
-        <div style="margin-top:8px;font-size:clamp(10px,1.2vw,14px);color:#${c.muted};line-height:1.4">${esc(st.label)}</div>
+        <div style="margin-top:8px;font-size:clamp(11px,1.3vw,16px);color:#${c.text};line-height:1.6">${esc(st.label)}</div>
       </div>`).join("");
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
       <div style="display:flex;gap:14px;margin-top:3%;flex-wrap:wrap">${cards}</div></div>`;
@@ -162,8 +162,8 @@ function slideHtml(item, i, total, c, ui) {
     const cards = pts.map((p) => `
       <div class="pv-glass" style="flex:1;padding:16px;min-width:0;text-align:center">
         ${p.icon ? `<div style="font-size:30px;margin-bottom:8px">${esc(p.icon)}</div>` : ""}
-        ${p.title ? `<div style="font-weight:700;color:#${c.title};font-size:clamp(12px,1.4vw,16px);margin-bottom:6px">${esc(p.title)}</div>` : ""}
-        <div style="color:#${c.muted};font-size:clamp(10px,1.25vw,14px);line-height:1.5">${esc(p.text)}</div>
+        ${p.title ? `<div style="font-weight:700;color:#${c.title};font-size:clamp(13px,1.8vw,24px);letter-spacing:-0.02em;line-height:1.1;margin-bottom:6px">${esc(p.title)}</div>` : ""}
+        <div style="color:#${c.text};font-size:clamp(11px,1.3vw,16px);line-height:1.6">${esc(p.text)}</div>
       </div>`).join("");
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
       <div style="display:flex;gap:14px;margin-top:3%">${cards}</div></div>`;
@@ -175,18 +175,18 @@ function slideHtml(item, i, total, c, ui) {
       <div style="display:flex;gap:24px;margin-top:4%;align-items:flex-start">
         <div class="pv-glass" style="padding:18px 22px;min-width:34%">
           <div style="font-size:clamp(34px,4.5vw,58px);font-weight:800;color:#${c.accent};line-height:1">${esc(st.value)}</div>
-          <div style="margin-top:8px;font-size:clamp(11px,1.3vw,15px);color:#${c.muted}">${esc(st.label)}</div>
+          <div style="margin-top:8px;font-size:clamp(11px,1.3vw,16px);color:#${c.text};line-height:1.6">${esc(st.label)}</div>
         </div>
-        <ul style="color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.7">${bullets}</ul>
+        <ul style="color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul>
       </div></div>`;
   }
   if (layout === "quote") {
     const quote = item.quote || (item.bullets || []).map(bText).join(" ");
     return `<div class="slide-card" style="background:#${c.bgDeep};color:#${c.text};justify-content:center;align-items:center;text-align:center">
-      <div class="snum" style="color:#${c.footer}">${i + 1} / ${total}</div>
+      <div class="snum">${i + 1} / ${total}</div>
       <div style="font-size:90px;color:#${c.accent};line-height:0.6;margin-bottom:16px">&ldquo;</div>
-      <div style="font-size:clamp(15px,2vw,24px);font-style:italic;color:#${c.title};max-width:80%;line-height:1.5">${esc(quote)}</div>
-      ${item.quoteBy ? `<div style="margin-top:14px;color:#${c.muted}">— ${esc(item.quoteBy)}</div>` : ""}
+      <div style="font-size:clamp(15px,2vw,24px);font-style:italic;color:#${c.title};max-width:80%;line-height:1.3">${esc(quote)}</div>
+      ${item.quoteBy ? `<div style="margin-top:14px;color:#9CA3AF;font-style:italic;font-size:12px">— ${esc(item.quoteBy)}</div>` : ""}
     </div>`;
   }
   if (layout === "two-col") {
@@ -195,14 +195,14 @@ function slideHtml(item, i, total, c, ui) {
     const r = bulletLis((item.bullets || []).slice(mid));
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
       <div style="display:flex;gap:28px;margin-top:3%">
-        <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.7">${l}</ul>
+        <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${l}</ul>
         <div style="width:2px;background:#${c.bgDeep};border-radius:1px"></div>
-        <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.7">${r}</ul>
+        <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${r}</ul>
       </div>${takeawayHtml(item.takeaway, c)}</div>`;
   }
   const bullets = bulletLis(item.bullets);
   return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}
-    <div class="snum" style="color:#${c.footer}">${i + 1} / ${total}</div>
+    <div class="snum">${i + 1} / ${total}</div>
     <div style="width:44px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:12px"></div>
     <h3 style="color:#${c.title}">${esc(item.heading)}</h3>
     <ul style="color:#${c.text}">${bullets}</ul>
@@ -220,14 +220,14 @@ function renderPreview(deck, themeKey, lang) {
       ${deck.icon ? `<div style="font-size:64px;margin-bottom:8px">${esc(deck.icon)}</div>` : ""}
       <div class="kicker" style="color:#${c.accent}">${esc(t("kicker"))}</div>
       <h1 style="color:#${c.title}">${esc(deck.title)}</h1>
-      ${deck.subtitle ? `<div class="subtitle" style="color:#${c.muted}">${esc(deck.subtitle)}</div>` : ""}
+      ${deck.subtitle ? `<div class="subtitle" style="color:#${c.title}">${esc(deck.subtitle)}</div>` : ""}
     </div>`;
   deck.slides.forEach((s, i) => { html += slideHtml(s, i + 1, total, c, uiLang); });
   html +=
     `<div class="slide-card closing" style="background:#${c.bgDeep};color:#${c.text}">
-      <h2 style="color:#${c.title}">${lang === "en" ? "Thank You" : "ကျေးဇူးတင်ပါတယ်"}</h2>
-      <div style="color:#${c.muted}">${esc(deck.title)}</div>
-      <div style="margin-top:10px;color:#${c.accentSoft};font-style:italic">${esc(t("closingQ"))}</div>
+      <h2 style="color:#${c.title};font-size:clamp(26px,4vw,44px);font-weight:800;letter-spacing:-0.02em;line-height:1.1;margin:0 0 12px">${lang === "en" ? "Thank You" : "ကျေးဇူးတင်ပါတယ်"}</h2>
+      <div style="color:#${c.text};font-size:clamp(12px,1.5vw,18px);line-height:1.6">${esc(deck.title)}</div>
+      <div style="margin-top:10px;color:#${c.accentSoft};font-style:italic;font-size:clamp(11px,1.4vw,16px)">${esc(t("closingQ"))}</div>
     </div>`;
   $("previewSlides").innerHTML = html;
   $("previewEmpty").classList.add("hidden");
