@@ -101,6 +101,9 @@ app.post("/api/generate", async (req, res) => {
       `VISUAL DIRECTION — this deck has a brand-new, one-of-a-kind visual identity. Make every choice serve it:\n` +
       `- Design name: "${theme.name}". Palette: background #${theme.bg} (deep #${theme.bgDeep}), signature accent #${theme.accent} (soft #${theme.accentSoft}), muted surface #${theme.band}.\n` +
       `- Title treatment: ${theme.titleStyle} | card corners: ${theme.corners} | background motif: ${theme.decor} | energy: ${theme.mood}.\n` +
+      `- Component styles for this deck: section headers = ${theme.headerStyle} (kicker=number pill+kicker rule, numeral=giant ghost number, tab=accent side-tab); ` +
+      `bullet lists = ${theme.bulletStyle} (chips=glass card w/ icon chips, numerals=big accent 01 02 03, rules=minimal hairlines); ` +
+      `feature cards = ${theme.cardStyle} (glass/solid/outline); stat blocks = ${theme.statStyle} (cards/giant/bands).\n` +
       `- Why this design fits the topic: ${theme.reason || "it matches the topic's energy."}\n` +
       `- Let the mood shape composition: an energetic topic earns punchy hero statements and dynamic timelines; ` +
       `an elegant topic earns refined quotes and calm two-column spreads; a data-heavy topic earns stats grids; ` +
@@ -126,6 +129,10 @@ app.post("/api/generate", async (req, res) => {
       titleStyle: theme.titleStyle,
       corners: theme.corners,
       decor: theme.decor,
+      headerStyle: theme.headerStyle,
+      bulletStyle: theme.bulletStyle,
+      cardStyle: theme.cardStyle,
+      statStyle: theme.statStyle,
       accent: theme.accent,
       theme,
     };

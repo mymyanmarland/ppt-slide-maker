@@ -101,12 +101,17 @@ function bText(b) {
 function bIcon(b) {
   return b && typeof b === "object" ? String(b.icon || "") : "";
 }
-function bulletLis(bullets, c) {
+function bulletLis(bullets, c, style) {
   const ac = c ? `#${c.accent}` : "inherit";
   return (bullets || [])
-    .map((b) => {
+    .map((b, i) => {
       const t = bText(b), ic = bIcon(b);
-      return t ? `<li>${ic ? `<span style="margin-right:6px">${esc(ic)}</span>` : ""}${hl(t, ac)}</li>` : "";
+      if (!t) return "";
+      if (style === "numerals")
+        return `<li style="list-style:none;margin-bottom:14px"><span style="font-size:1.6em;font-weight:800;color:${ac};margin-right:10px;line-height:1">${String(i + 1).padStart(2, "0")}</span>${hl(t, ac)}</li>`;
+      if (style === "rules")
+        return `<li style="list-style:none;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #${c.band}"><span style="color:${ac};margin-right:8px">▪</span>${hl(t, ac)}</li>`;
+      return `<li>${ic ? `<span style="margin-right:6px">${esc(ic)}</span>` : ""}${hl(t, ac)}</li>`;
     })
     .join("");
 }
@@ -127,40 +132,84 @@ function layoutOf(item) {
   return "bullets";
 }
 
+function headHtml(c, i, total, heading) {
+  const hs = c.headerStyle || "kicker";
+  const ac = `#${c.accent}`;
+  const num = String(i).padStart(2, "0"), tot = String(total).padStart(2, "0");
+  if (hs === "numeral")
+    return `<div style="position:relative;margin-bottom:10px">` +
+      `<div style="position:absolute;right:0;top:-46px;font-size:88px;font-weight:800;color:#${c.band};line-height:1;pointer-events:none">${num}</div>` +
+      `<h3 style="color:#${c.title};position:relative;max-width:78%">${hl(heading, ac)}</h3>` +
+      `<div style="width:44px;height:4px;background:${ac};border-radius:2px;margin-top:10px"></div></div>`;
+  if (hs === "tab")
+    return `<div style="display:flex;gap:12px;align-items:stretch;margin-bottom:10px">` +
+      `<div style="width:8px;background:${ac};border-radius:4px"></div>` +
+      `<div><div style="font-size:11px;color:#${c.muted};letter-spacing:0.08em;margin-bottom:4px">${num} / ${tot}</div>` +
+      `<h3 style="color:#${c.title};margin:0">${hl(heading, ac)}</h3></div></div>`;
+  return `<div class="snum">${num} / ${tot}</div>` +
+    `<div style="width:44px;height:4px;background:${ac};border-radius:2px;margin-bottom:12px"></div>` +
+    `<h3 style="color:#${c.title}">${hl(heading, ac)}</h3>`;
+}
+
 function slideHtml(item, i, total, c, ui) {
   const layout = layoutOf(item);
-  const head =
-    `<div class="snum">${i + 1} / ${total}</div>` +
-    `<div style="width:44px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:12px"></div>` +
-    `<h3 style="color:#${c.title}">${hl(item.heading, `#${c.accent}`)}</h3>`;
+  const head = headHtml(c, i, total, item.heading);
   const iconBg = item.icon
     ? `<div style="position:absolute;right:4%;top:18%;font-size:110px;opacity:0.16;pointer-events:none">${esc(item.icon)}</div>`
     : "";
 
   if (layout === "stats") {
-    const cards = (item.stats || []).slice(0, 4).map((st) => `
+    const sst = c.statStyle || "cards";
+    const stats = (item.stats || []).slice(0, 4);
+    let body;
+    if (sst === "giant") {
+      body = `<div style="display:flex;margin-top:5%">${stats.map((st, k) => `
+        <div style="flex:1;text-align:center;${k > 0 ? `border-left:2px solid #${c.band};` : ""}padding:0 12px">
+          <div style="font-size:clamp(34px,5vw,64px);font-weight:800;color:#${c.accent};line-height:1">${esc(st.value)}</div>
+          <div style="margin-top:10px;font-size:clamp(10px,1.2vw,15px);color:#${c.text};line-height:1.5">${esc(st.label)}</div>
+        </div>`).join("")}</div>`;
+    } else if (sst === "bands") {
+      body = `<div style="margin-top:4%;display:flex;flex-direction:column;gap:12px">${stats.map((st) => `
+        <div style="display:flex;align-items:center;background:#${c.band}88;border-radius:8px;overflow:hidden">
+          <div style="width:8px;align-self:stretch;background:#${c.accent}"></div>
+          <div style="font-size:clamp(24px,3.4vw,40px);font-weight:800;color:#${c.accent};padding:10px 6px 10px 18px;white-space:nowrap">${esc(st.value)}</div>
+          <div style="font-size:clamp(11px,1.3vw,16px);color:#${c.text};padding:10px 18px 10px 10px;line-height:1.5">${esc(st.label)}</div>
+        </div>`).join("")}</div>`;
+    } else {
+      const cards = stats.map((st) => `
       <div class="pv-glass" style="flex:1;padding:14px 16px;min-width:0">
         <div style="width:22px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:10px"></div>
         <div style="font-size:clamp(24px,3vw,40px);font-weight:800;color:#${c.accent};line-height:1">${esc(st.value)}</div>
         <div style="margin-top:8px;font-size:clamp(11px,1.3vw,16px);color:#${c.text};line-height:1.6">${esc(st.label)}</div>
       </div>`).join("");
-    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
-      <div style="display:flex;gap:14px;margin-top:3%;flex-wrap:wrap">${cards}</div></div>`;
+      body = `<div style="display:flex;gap:14px;margin-top:3%;flex-wrap:wrap">${cards}</div>`;
+    }
+    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}${body}</div>`;
   }
   if (layout === "cards") {
+    const cst = c.cardStyle || "glass";
     const pts = (item.points || []).length >= 2 ? item.points.slice(0, 3)
       : (item.bullets || []).slice(0, 3).map((b) => {
           const t = bText(b);
           const m = t.split(/[:—–-]\s(.+)/);
           return { icon: bIcon(b) || item.icon, title: m.length > 2 ? m[0].trim() : "", text: m.length > 2 ? m[1].trim() : t };
         });
-    const cards = pts.map((p) => `
-      <div class="pv-glass" style="flex:1;padding:16px;min-width:0;text-align:center">
-        <div style="width:22px;height:4px;background:#${c.accent};border-radius:2px;margin:0 auto 12px"></div>
-        ${p.icon ? `<div style="width:52px;height:52px;border-radius:50%;background:#${c.accent}29;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 10px">${esc(p.icon)}</div>` : ""}
+    const cards = pts.map((p) => {
+      const inner = `
+        ${p.icon ? (cst === "outline"
+          ? `<div style="width:52px;height:52px;border-radius:50%;border:2px solid #${c.accent};display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 10px">${esc(p.icon)}</div>`
+          : cst === "solid"
+          ? `<div style="width:44px;height:44px;background:#${c.accent};display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:10px">${esc(p.icon)}</div>`
+          : `<div style="width:52px;height:52px;border-radius:50%;background:#${c.accent}29;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 10px">${esc(p.icon)}</div>`) : ""}
         ${p.title ? `<div style="font-weight:700;color:#${c.title};font-size:clamp(13px,1.8vw,24px);letter-spacing:-0.02em;line-height:1.1;margin-bottom:6px">${hl(p.title, `#${c.accent}`)}</div>` : ""}
-        <div style="color:#${c.text};font-size:clamp(11px,1.3vw,16px);line-height:1.6">${hl(p.text, `#${c.accent}`)}</div>
-      </div>`).join("");
+        <div style="color:#${c.text};font-size:clamp(11px,1.3vw,16px);line-height:1.6">${hl(p.text, `#${c.accent}`)}</div>`;
+      if (cst === "solid")
+        return `<div style="flex:1;padding:0 0 16px;min-width:0;background:#${c.band};text-align:left;overflow:hidden"><div style="height:8px;background:#${c.accent};margin-bottom:14px"></div><div style="padding:0 16px">${inner}</div></div>`;
+      if (cst === "outline")
+        return `<div style="flex:1;padding:16px;min-width:0;text-align:center;border:2px solid #${c.accent}">${inner}</div>`;
+      return `<div class="pv-glass" style="flex:1;padding:16px;min-width:0;text-align:center">
+        <div style="width:22px;height:4px;background:#${c.accent};border-radius:2px;margin:0 auto 12px"></div>${inner}</div>`;
+    }).join("");
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
       <div style="display:flex;gap:14px;margin-top:3%">${cards}</div></div>`;
   }
@@ -231,12 +280,16 @@ function slideHtml(item, i, total, c, ui) {
       ${item.sub ? `<div style="margin-top:18px;font-size:clamp(12px,1.6vw,18px);font-style:italic;color:#${c.text};max-width:70%;line-height:1.5">${hl(item.sub, `#${c.accent}`)}</div>` : ""}
     </div>`;
   }
-  const bullets = bulletLis(item.bullets, c);
-  return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}
-    <div class="snum">${i + 1} / ${total}</div>
-    <div style="width:44px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:12px"></div>
-    <h3 style="color:#${c.title}">${hl(item.heading, `#${c.accent}`)}</h3>
-    <ul style="color:#${c.text}">${bullets}</ul>
+  const bs = c.bulletStyle || "chips";
+  const bullets = bulletLis(item.bullets, c, bs);
+  const listWrap =
+    bs === "chips"
+      ? `<div class="pv-glass" style="padding:16px 20px;margin-top:4%"><ul style="color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul></div>`
+      : bs === "numerals"
+      ? `<div style="border-left:4px solid #${c.accent};padding-left:20px;margin-top:4%"><ul style="color:#${c.text};margin:0;padding:0;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul></div>`
+      : `<div style="border-top:2px solid #${c.band};border-bottom:2px solid #${c.band};padding:14px 0;margin-top:4%"><ul style="color:#${c.text};margin:0;padding:0;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul></div>`;
+  return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}${headHtml(c, i, total, item.heading)}
+    ${listWrap}
     ${takeawayHtml(item.takeaway, c)}
   </div>`;
 }

@@ -321,10 +321,17 @@ function designSystemPrompt(topic, detail, lang, opts) {
     "- corners: 'sharp' = edgy rectangles, 'soft' = gentle rounding, 'round' = very rounded friendly cards.\n" +
     "- decor: 'dots' = dot-grid motif, 'streaks' = diagonal light streaks, 'rings' = large thin circles, 'none' = pure minimal.\n" +
     "- mood: energetic (fast, punchy), elegant (smooth, calm), bold (dramatic), calm (gentle) — match the topic's energy.\n" +
+    "- headerStyle: 'kicker' = number pill + kicker rule + title; 'numeral' = giant ghost slide number behind the title; 'tab' = accent side-tab marker + title.\n" +
+    "- bulletStyle: 'chips' = bullets on a glass card with icon chips; 'numerals' = no card, big accent numerals 01 02 03 lead each bullet; 'rules' = no card, minimal hairline separators.\n" +
+    "- cardStyle: 'glass' = translucent glass cards; 'solid' = solid filled cards with thick top accent bar; 'outline' = transparent cards with accent outline only.\n" +
+    "- statStyle: 'cards' = stats on glass cards; 'giant' = no cards, enormous numbers with thin dividers; 'bands' = full-width rows with accent side bands.\n" +
+    "- Keep the four style picks COHERENT with each other and with corners/mood (e.g. sharp corners pair with numerals/rules; round corners pair with chips/glass).\n" +
     langLine + "\n" +
     "Reply with ONLY this JSON and nothing else:\n" +
     '{"name":"<original 2-4 word design name>","palette":{"bg":"RRGGBB","bgDeep":"RRGGBB","band":"RRGGBB","accent":"RRGGBB","accentSoft":"RRGGBB","title":"RRGGBB","text":"RRGGBB","muted":"RRGGBB","footer":"RRGGBB"},' +
-    '"titleStyle":"monument|band|halo","corners":"sharp|soft|round","decor":"dots|streaks|rings|none","mood":"energetic|elegant|bold|calm","reason":"<one sentence: why this design fits the topic>"}'
+    '"titleStyle":"monument|band|halo","corners":"sharp|soft|round","decor":"dots|streaks|rings|none","mood":"energetic|elegant|bold|calm",' +
+    '"headerStyle":"kicker|numeral|tab","bulletStyle":"chips|numerals|rules","cardStyle":"glass|solid|outline","statStyle":"cards|giant|bands",' +
+    '"reason":"<one sentence: why this design fits the topic>"}'
   );
 }
 

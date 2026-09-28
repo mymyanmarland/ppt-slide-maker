@@ -10,6 +10,10 @@ const TITLE_STYLES = ["monument", "band", "halo"];
 const CORNERS = ["sharp", "soft", "round"];
 const DECORS = ["dots", "streaks", "rings", "none"];
 const MOODS = ["energetic", "elegant", "bold", "calm"];
+const HEADER_STYLES = ["kicker", "numeral", "tab"];
+const BULLET_STYLES = ["chips", "numerals", "rules"];
+const CARD_STYLES = ["glass", "solid", "outline"];
+const STAT_STYLES = ["cards", "giant", "bands"];
 
 // Internal fallback only — never shown in the UI. Used when the AI returns garbage.
 const FALLBACK_COLORS = {
@@ -53,6 +57,10 @@ function normalizeDesign(raw, lang) {
     corners,
     decor: cleanEnum(r.decor, DECORS, "none"),
     mood: cleanEnum(r.mood, MOODS, "elegant"),
+    headerStyle: cleanEnum(r.headerStyle, HEADER_STYLES, "kicker"),
+    bulletStyle: cleanEnum(r.bulletStyle, BULLET_STYLES, "chips"),
+    cardStyle: cleanEnum(r.cardStyle, CARD_STYLES, "glass"),
+    statStyle: cleanEnum(r.statStyle, STAT_STYLES, "cards"),
     radius: corners === "sharp" ? 0.02 : corners === "round" ? 0.24 : 0.12,
     reason: String(r.reason || "").trim().slice(0, 200),
   };
@@ -61,9 +69,12 @@ function normalizeDesign(raw, lang) {
 
 // Accept a theme object (new decks) or a legacy theme key (old decks).
 function resolveTheme(t, legacyThemes) {
-  if (t && typeof t === "object" && t.bg && t.accent) return t;
-  if (typeof t === "string" && legacyThemes && legacyThemes[t]) return legacyThemes[t];
-  return { ...FALLBACK_COLORS, name: "Fresh Design", titleStyle: "monument", corners: "soft", decor: "none", mood: "elegant", radius: 0.12, reason: "" };
+  let th;
+  if (t && typeof t === "object" && t.bg && t.accent) th = t;
+  else if (typeof t === "string" && legacyThemes && legacyThemes[t]) th = legacyThemes[t];
+  else th = { ...FALLBACK_COLORS, name: "Fresh Design", titleStyle: "monument", corners: "soft", decor: "none", mood: "elegant", headerStyle: "kicker", bulletStyle: "chips", cardStyle: "glass", statStyle: "cards", radius: 0.12, reason: "" };
+  // Fill style-DNA defaults for legacy themes that predate them.
+  return { headerStyle: "kicker", bulletStyle: "chips", cardStyle: "glass", statStyle: "cards", ...th };
 }
 
 function hexRgb(h) {
