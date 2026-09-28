@@ -64,67 +64,72 @@ function topBar(slide, pptx, theme) {
   });
 }
 
-function numberPill(slide, pptx, theme, n) {
+function numberPill(slide, pptx, theme, n, pillX) {
+  const px = pillX == null ? 0.55 : pillX;
   slide.addShape(pptx.ShapeType.roundRect, {
-    x: 0.55, y: 0.42, w: 0.72, h: 0.42, rectRadius: 0.21,
+    x: px, y: 0.42, w: 0.72, h: 0.42, rectRadius: 0.21,
     fill: { color: theme.accent }, line: { color: theme.accent },
   });
   slide.addText(String(n).padStart(2, "0"), {
-    x: 0.55, y: 0.42, w: 0.72, h: 0.42, align: "center",
+    x: px, y: 0.42, w: 0.72, h: 0.42, align: "center",
     fontSize: 14, bold: true, color: isLight(theme) ? "FFFFFF" : theme.bg, fontFace: "Calibri",
   });
 }
 
 
 // Section header with 3 AI-picked variants (headerStyle): kicker | numeral | tab
-function sectionHead(slide, pptx, theme, idx, total, heading) {
+// box = content box {x, w} (shrinks when a side art panel is present).
+function sectionHead(slide, pptx, theme, idx, total, heading, box, artAtLeft) {
+  const b = box || FULL_BOX;
+  const bx = b.x, bw = b.w;
   const style = theme.headerStyle || "kicker";
   const pad = (n) => String(n).padStart(2, "0");
   if (style === "numeral") {
     // giant ghost slide number top-right + title with accent rule
     slide.addText(pad(idx + 1), {
-      x: 9.4, y: 0.0, w: 3.4, h: 1.7, align: "right",
+      x: bx + bw - 3.4, y: 0.0, w: 3.4, h: 1.7, align: "right",
       fontSize: 100, bold: true, color: theme.band, fontFace: "Calibri",
     });
     const runs = richText(heading || "", theme, { ...T.h2(theme.title), fontFace: fontFor(heading) });
     slide.addText(runs.length ? runs : "", {
-      x: 0.65, y: 0.32, w: 8.9, h: 1.1,
+      x: bx - 0.3, y: 0.32, w: bw - 3.15, h: 1.1,
       ...T.h2(theme.title), fontFace: fontFor(heading), valign: "middle",
     });
     slide.addShape(pptx.ShapeType.rect, {
-      x: 0.67, y: 1.32, w: 1.1, h: 0.05, fill: { color: theme.accent }, line: { color: theme.accent },
+      x: bx - 0.28, y: 1.32, w: 1.1, h: 0.05, fill: { color: theme.accent }, line: { color: theme.accent },
     });
     return;
   }
   if (style === "tab") {
     // accent side tab + small counter + title
     slide.addShape(pptx.ShapeType.rect, {
-      x: 0.55, y: 0.42, w: 0.14, h: 0.98, fill: { color: theme.accent }, line: { color: theme.accent },
+      x: bx - 0.4, y: 0.42, w: 0.14, h: 0.98, fill: { color: theme.accent }, line: { color: theme.accent },
     });
     slide.addText(`${pad(idx + 1)} / ${pad(total)}`, {
-      x: 0.85, y: 0.34, w: 3.0, h: 0.3, fontSize: 11, color: theme.muted, fontFace: "Calibri",
+      x: bx - 0.1, y: 0.34, w: 3.0, h: 0.3, fontSize: 11, color: theme.muted, fontFace: "Calibri",
     });
     const runs = richText(heading || "", theme, { ...T.h2(theme.title), fontFace: fontFor(heading) });
     slide.addText(runs.length ? runs : "", {
-      x: 0.85, y: 0.6, w: 11.9, h: 0.95,
+      x: bx - 0.1, y: 0.6, w: bw + 0.47, h: 0.95,
       ...T.h2(theme.title), fontFace: fontFor(heading), valign: "top",
     });
     return;
   }
   topBar(slide, pptx, theme);
-  numberPill(slide, pptx, theme, idx + 1);
-  headingBlock(slide, pptx, theme, heading);
+  numberPill(slide, pptx, theme, idx + 1, artAtLeft ? bx - 0.4 : 0.55);
+  headingBlock(slide, pptx, theme, heading, bx + 0.55, bw - 0.13);
 }
 
-function headingBlock(slide, pptx, theme, heading) {
+function headingBlock(slide, pptx, theme, heading, hx, hw) {
   const base = { ...T.h2(theme.title), fontFace: fontFor(heading) };
+  const x = hx == null ? 1.5 : hx, w = hw == null ? 11.3 : hw;
   const runs = richText(heading || "", theme, base);
   slide.addText(runs.length ? runs : "", {
-    x: 1.5, y: 0.32, w: 11.3, h: 1.1,
+    x, y: 0.32, w, h: 1.1,
     ...T.h2(theme.title), fontFace: fontFor(heading), valign: "middle",
   });
   slide.addShape(pptx.ShapeType.rect, {
-    x: 1.52, y: 1.32, w: 1.1, h: 0.05, fill: { color: theme.accent }, line: { color: theme.accent },
+    x: x + 0.02, y: 1.32, w: 1.1, h: 0.05, fill: { color: theme.accent }, line: { color: theme.accent },
   });
 }
 
@@ -286,6 +291,79 @@ function newSlide(pptx, theme) {
   return s;
 }
 
+// ---- AI artwork ------------------------------------------------------------
+// Per-slide art: item.art = { n, at } -> deck.artworks[n].png (PNG data URL).
+const FULL_BOX = { x: 0.95, w: 11.43 };
+function resolveArt(item, deck) {
+  const a = item && item.art;
+  const works = (deck && deck.artworks) || [];
+  if (!a || a.at === "none" || !works.length) return null;
+  const w = works[a.n];
+  if (!w || !w.png) return null;
+  return { png: w.png, at: a.at };
+}
+function coverArtOf(deck) {
+  const works = (deck && deck.artworks) || [];
+  const c = deck && deck.coverArt;
+  if (!c || c.at !== "bg" || !works.length) return null;
+  const w = works[c.n];
+  return w && w.png ? { png: w.png, at: "bg" } : null;
+}
+// Draws bg art (full-bleed + readability scrim) or a tall side art panel.
+// Returns the content box {x, w} the builder must fit text into.
+function placeArt(s, pptx, theme, art) {
+  if (!art) return { x: FULL_BOX.x, w: FULL_BOX.w };
+  if (art.at === "bg") {
+    s.addImage({ data: art.png, x: 0, y: 0, w: 13.33, h: 7.5 });
+    const lt = isLight(theme);
+    const sc = lt ? "FFFFFF" : "000000";
+    s.addShape(pptx.ShapeType.rect, {
+      x: 0, y: 0, w: 13.33, h: 7.5,
+      fill: { color: sc, transparency: lt ? 42 : 58 },
+      line: { color: sc, transparency: 100 },
+    });
+    return { x: FULL_BOX.x, w: FULL_BOX.w };
+  }
+  const pw = 3.9, ph = 5.85, py = 0.55;
+  const px = art.at === "left" ? 0.45 : 13.33 - 0.45 - pw;
+  s.addImage({ data: art.png, x: px, y: py, w: pw, h: ph, sizing: { type: "cover", w: pw, h: ph } });
+  const ex = art.at === "left" ? px + pw : px;
+  s.addShape(pptx.ShapeType.rect, {
+    x: ex - 0.035, y: py, w: 0.07, h: ph,
+    fill: { color: theme.accent }, line: { color: theme.accent },
+  });
+  return art.at === "left"
+    ? { x: px + pw + 0.5, w: 12.38 - (px + pw + 0.5) }
+    : { x: 0.95, w: px - 0.5 - 0.95 };
+}
+
+// ---- Width-aware text measurement ------------------------------------------
+// Burmese complex glyphs average ~0.85em wide; estimates keep text inside boxes
+// when a side art panel narrows the content width.
+function cplFor(wIn, pt, avgEm) {
+  return Math.max(6, (wIn * 96) / (pt * (avgEm || 0.85)));
+}
+function linesFor(text, wIn, pt) {
+  return Math.max(1, Math.ceil(String(text || "").length / cplFor(wIn, pt)));
+}
+function blockLines(texts, wIn, pt) {
+  return (texts || []).reduce((a, t) => a + linesFor(t, wIn, pt), 0);
+}
+// Shrink pt (down to minPt) until the text block fits maxHIn inches tall.
+function fitPt(texts, wIn, basePt, maxHIn, minPt, lineH) {
+  const arr = Array.isArray(texts) ? texts : [texts];
+  let pt = basePt;
+  const lh = lineH || 1.5;
+  while (pt > (minPt || 11) && (blockLines(arr, wIn, pt) * pt * lh) / 96 > maxHIn) pt -= 0.5;
+  return pt;
+}
+// Hard-clamp text to the chars that fit maxLines at pt.
+function clampText(text, wIn, pt, maxLines) {
+  const t = String(text || "");
+  const maxChars = Math.floor(cplFor(wIn, pt) * Math.max(1, maxLines));
+  return t.length > maxChars ? t.slice(0, Math.max(0, maxChars - 1)) + "…" : t;
+}
+
 // ---- slide layouts ---------------------------------------------------------
 
 function addTitleSlide(pptx, theme, deck, lang) {
@@ -317,6 +395,8 @@ function titleDate(s, theme, lang, x, y, w, align) {
 function addTitleMonument(pptx, theme, deck, lang) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bgDeep };
+  const cart = coverArtOf(deck);
+  if (cart) placeArt(s, pptx, theme, cart);
   titleKicker(pptx, s, theme, lang, 0.9, 1.5, 8, "left");
   s.addShape(pptx.ShapeType.rect, {
     x: 0.9, y: 2.0, w: 1.6, h: 0.09, fill: { color: theme.accent }, line: { color: theme.accent },
@@ -344,6 +424,8 @@ function addTitleMonument(pptx, theme, deck, lang) {
 function addTitleBand(pptx, theme, deck, lang) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
+  const cart = coverArtOf(deck);
+  if (cart) placeArt(s, pptx, theme, cart);
   s.addShape(pptx.ShapeType.rect, {
     x: 0, y: 0, w: 0.85, h: 7.5, fill: { color: theme.accent }, line: { color: theme.accent },
   });
@@ -374,6 +456,8 @@ function addTitleBand(pptx, theme, deck, lang) {
 function addTitleHalo(pptx, theme, deck, lang) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bgDeep };
+  const cart = coverArtOf(deck);
+  if (cart) placeArt(s, pptx, theme, cart);
   s.addShape(pptx.ShapeType.ellipse, {
     x: 4.16, y: 0.9, w: 5.0, h: 5.0,
     fill: { color: theme.bgDeep, transparency: 100 }, line: { color: theme.accent, width: 2.5, transparency: 25 },
@@ -404,44 +488,54 @@ function addTitleHalo(pptx, theme, deck, lang) {
 function addBulletsSlide(pptx, theme, deck, idx, item) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
+  const art = resolveArt(item, deck);
+  const box = placeArt(s, pptx, theme, art);
+  const bx = box.x, bw = box.w;
+  const sideArt = art && (art.at === "left" || art.at === "right");
   ambient(s, pptx, theme);
-  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading);
+  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading, box, art && art.at === "left");
   const bs = theme.bulletStyle || "chips";
   const hasTakeaway = !!(item.takeaway && item.takeaway.trim());
   const nBullets = (item.bullets || []).length;
   // Type scale is 16-18pt: step down as density rises so 1.6 line-height always fits.
-  const fs = hasTakeaway ? (nBullets > 4 ? 16 : 17) : (nBullets > 4 ? 17 : 18);
+  // Width-aware: shrink further until the list fits its box when side art narrows it.
+  let fs = hasTakeaway ? (nBullets > 4 ? 16 : 17) : (nBullets > 4 ? 17 : 18);
+  {
+    const bTexts = (item.bullets || []).map((b) => (typeof btext === "function" ? btext(b) : String((b && b.text) || b || "")));
+    const listW = Math.max(3, bw - 2.6), listH = hasTakeaway ? 3.9 : 4.4;
+    while (fs > 11 && (blockLines(bTexts, listW, fs) * fs * 1.6) / 96 > listH) fs -= 1;
+  }
   if (bs === "chips") {
-    glassCard(s, pptx, theme, 1.3, 1.65, 11.1, 5.1, 0.16);
-    watermark(s, theme, item.icon);
+    glassCard(s, pptx, theme, bx + 0.35, 1.65, bw - 0.33, 5.1, 0.16);
+    if (!sideArt) watermark(s, theme, item.icon);
     const runs = bulletRuns(item.bullets, theme, fs);
     if (runs.length)
-      s.addText(runs, { x: 1.75, y: 1.9, w: item.icon ? 8.35 : 9.85, h: hasTakeaway ? 4.0 : 4.6, valign: "top" });
+      s.addText(runs, { x: bx + 0.8, y: 1.9, w: item.icon && !sideArt ? bw - 3.08 : bw - 1.58, h: hasTakeaway ? 4.0 : 4.6, valign: "top" });
   } else if (bs === "numerals") {
     // no card: vertical accent bar + big accent numerals leading each bullet
     const th = hasTakeaway ? 4.0 : 4.35;
     s.addShape(pptx.ShapeType.rect, {
-      x: 1.45, y: 1.85, w: 0.07, h: th, fill: { color: theme.accent }, line: { color: theme.accent },
+      x: bx + 0.5, y: 1.85, w: 0.07, h: th, fill: { color: theme.accent }, line: { color: theme.accent },
     });
-    watermark(s, theme, item.icon);
+    if (!sideArt) watermark(s, theme, item.icon);
     const runs = styledBulletRuns(item.bullets, theme, fs, "numerals");
     if (runs.length)
-      s.addText(runs, { x: 1.85, y: 1.9, w: item.icon ? 8.0 : 9.5, h: th, valign: "top" });
+      s.addText(runs, { x: bx + 0.9, y: 1.9, w: item.icon && !sideArt ? bw - 3.43 : bw - 1.93, h: th, valign: "top" });
   } else {
     // rules: no card, minimal hairlines above and below the list
     const botY = hasTakeaway ? 5.85 : 6.1;
     s.addShape(pptx.ShapeType.rect, {
-      x: 1.5, y: 1.8, w: 10.33, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
+      x: bx + 0.55, y: 1.8, w: bw - 1.1, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
     });
     s.addShape(pptx.ShapeType.rect, {
-      x: 1.5, y: botY, w: 10.33, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
+      x: bx + 0.55, y: botY, w: bw - 1.1, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
     });
-    watermark(s, theme, item.icon);
+    if (!sideArt) watermark(s, theme, item.icon);
     const runs = styledBulletRuns(item.bullets, theme, fs, "rules");
     if (runs.length)
-      s.addText(runs, { x: 1.5, y: 1.95, w: item.icon ? 8.35 : 10.33, h: hasTakeaway ? 3.7 : 4.0, valign: "top" });
+      s.addText(runs, { x: bx + 0.55, y: 1.95, w: item.icon && !sideArt ? bw - 3.08 : bw - 1.1, h: hasTakeaway ? 3.7 : 4.0, valign: "top" });
   }
-  if (hasTakeaway) takeawayStrip(s, pptx, theme, item.takeaway.trim(), 1.6, 5.98, 10.5);
+  if (hasTakeaway) takeawayStrip(s, pptx, theme, item.takeaway.trim(), bx + 0.65, 5.98, bw - 0.93);
   if (item.notes) s.addNotes(item.notes);
   addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
 }
@@ -449,31 +543,45 @@ function addBulletsSlide(pptx, theme, deck, idx, item) {
 function addStatSlide(pptx, theme, deck, idx, item) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
+  const art = resolveArt(item, deck);
+  const box = placeArt(s, pptx, theme, art);
+  const bx = box.x, bw = box.w;
+  const sideArt = art && (art.at === "left" || art.at === "right");
   ambient(s, pptx, theme);
-  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading);
+  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading, box, art && art.at === "left");
   const hasStat = item.stat && item.stat.value;
+  // With a side art panel the content is narrow: stack the stat card on top,
+  // bullets below it — instead of squeezing them side by side.
+  const bTexts = (item.bullets || []).map((b) => (typeof btext === "function" ? btext(b) : String((b && b.text) || b || "")));
   if (hasStat) {
-    // stat card
+    const cw = sideArt ? bw - 1.1 : 4.6, ch = sideArt ? 1.75 : 2.5;
+    const vPt = sideArt ? 44 : 64;
     s.addShape(pptx.ShapeType.roundRect, {
-      x: 1.5, y: 1.9, w: 4.6, h: 2.5, rectRadius: 0.18,
+      x: bx + 0.55, y: 1.9, w: cw, h: ch, rectRadius: 0.18,
       fill: { color: theme.band }, line: { color: theme.band },
     });
     s.addShape(pptx.ShapeType.rect, {
-      x: 1.5, y: 1.9, w: 0.12, h: 2.5, fill: { color: theme.accent }, line: { color: theme.accent },
+      x: bx + 0.55, y: 1.9, w: 0.12, h: ch, fill: { color: theme.accent }, line: { color: theme.accent },
     });
     s.addText(item.stat.value, {
-      x: 1.85, y: 2.0, w: 4.0, h: 1.3,
-      fontSize: 64, bold: true, color: theme.accent, fontFace: fontFor(item.stat.value),
+      x: bx + 0.9, y: 2.0, w: cw - 0.7, h: 1.1,
+      fontSize: vPt, bold: true, color: theme.accent, fontFace: fontFor(item.stat.value),
     });
     s.addText(item.stat.label || "", {
-      x: 1.85, y: 3.25, w: 4.0, h: 1.0,
-      fontSize: 16, color: theme.text, fontFace: fontFor(item.stat.label), lineSpacingMultiple: 1.6,
+      x: bx + 0.9, y: sideArt ? 2.95 : 3.25, w: cw - 0.7, h: 0.9,
+      fontSize: sideArt ? 14 : 16, color: theme.text, fontFace: fontFor(item.stat.label), lineSpacingMultiple: 1.6,
     });
-    const runs = bulletRuns(item.bullets, theme, 16);
-    if (runs.length) s.addText(runs, { x: 6.7, y: 1.9, w: 5.1, h: 4.4, valign: "top" });
+    const blW = sideArt ? bw - 1.1 : bw - 6.33, blH = sideArt ? 2.5 : 4.4;
+    const bfs = fitPt(bTexts, Math.max(2.5, blW), 16, blH, 11, 1.6);
+    const runs = bulletRuns(item.bullets, theme, bfs);
+    if (runs.length) s.addText(runs, sideArt
+      ? { x: bx + 0.55, y: 3.9, w: blW, h: blH, valign: "top" }
+      : { x: bx + 5.75, y: 1.9, w: blW, h: blH, valign: "top" });
   } else {
-    const runs = bulletRuns(item.bullets, theme, 18);
-    if (runs.length) s.addText(runs, { x: 1.5, y: 1.85, w: 9.6, h: 4.6, valign: "top" });
+    const blW = Math.max(2.5, bw - 1.83);
+    const bfs = fitPt(bTexts, blW, 18, 4.6, 11, 1.6);
+    const runs = bulletRuns(item.bullets, theme, bfs);
+    if (runs.length) s.addText(runs, { x: bx + 0.55, y: 1.85, w: blW, h: 4.6, valign: "top" });
   }
   if (item.notes) s.addNotes(item.notes);
   addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
@@ -483,18 +591,61 @@ function addStatSlide(pptx, theme, deck, idx, item) {
 function addCardsSlide(pptx, theme, deck, idx, item) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
+  const art = resolveArt(item, deck);
+  const box = placeArt(s, pptx, theme, art);
+  const bx = box.x, bw = box.w;
+  const sideArt = art && (art.at === "left" || art.at === "right");
   ambient(s, pptx, theme);
-  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading);
+  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading, box, art && art.at === "left");
   const pts = item.points.length >= 2 ? item.points : (item.bullets || []).slice(0, 3).map((b) => {
     const t = btext(b);
     const m = t.split(/[:—–-]\s(.+)/);
     return { icon: bicon(b) || item.icon, title: m.length > 2 ? m[0].trim() : "", text: m.length > 2 ? m[1].trim() : t };
   });
   const n = Math.min(3, pts.length);
-  const gap = 0.4, avail = 11.43, w = (avail - (n - 1) * gap) / n;
+  const gap = 0.4, w = (bw - (n - 1) * gap) / n;
   const cst = theme.cardStyle || "glass";
+  if (sideArt) {
+    // Narrow content (side art panel): compact horizontal rows instead of squeezed columns.
+    const rows = pts.slice(0, 3), rowH = 1.42, rowGap = 0.18, y0 = 1.95;
+    rows.forEach((p, k) => {
+      const x = bx + 0.35, y = y0 + k * (rowH + rowGap), rw = bw - 0.7;
+      if (cst === "solid") {
+        s.addShape(pptx.ShapeType.roundRect, { x, y, w: rw, h: rowH, rectRadius: 0.1, fill: { color: theme.band }, line: { color: theme.band } });
+        s.addShape(pptx.ShapeType.rect, { x, y, w: 0.12, h: rowH, fill: { color: theme.accent }, line: { color: theme.accent } });
+      } else if (cst === "outline") {
+        s.addShape(pptx.ShapeType.roundRect, { x, y, w: rw, h: rowH, rectRadius: theme.radius, fill: { color: theme.bg, transparency: 100 }, line: { color: theme.accent, width: 2 } });
+      } else {
+        glassCard(s, pptx, theme, x, y, rw, rowH, 0.16);
+      }
+      const ix = x + 0.32, iw = 0.78;
+      if (p.icon) {
+        s.addShape(pptx.ShapeType.ellipse, {
+          x: ix, y: y + (rowH - iw) / 2, w: iw, h: iw,
+          fill: { color: theme.accent, transparency: 78 }, line: { color: theme.accent, transparency: 100 },
+        });
+        s.addText(p.icon, { x: ix, y: y + (rowH - iw) / 2 + 0.03, w: iw, h: iw, align: "center", fontSize: 30, fontFace: "Segoe UI Emoji" });
+      }
+      const tx2 = ix + iw + 0.28, tw2 = rw - (iw + 0.28) - 0.4;
+      const tPt = 17;
+      const safeT = clampText(p.title || "", tw2, tPt, 1);
+      if (safeT) {
+        const tBase = { ...T.h3(theme.title), fontSize: tPt, bold: true, fontFace: fontFor(safeT) };
+        s.addText(richText(safeT, theme, tBase), { x: tx2, y: y + 0.16, w: tw2, h: 0.5, ...tBase, valign: "top" });
+      }
+      const xPt = fitPt(p.text || "", tw2, 13, 0.62, 11, 1.5);
+      const safeX = clampText(p.text || "", tw2, xPt, 2);
+      if (safeX) {
+        const bBase = { fontSize: xPt, color: theme.text, fontFace: fontFor(safeX), lineSpacingMultiple: 1.5 };
+        s.addText(richText(safeX, theme, bBase), { x: tx2, y: y + 0.62, w: tw2, h: 0.68, ...bBase, valign: "top" });
+      }
+    });
+    if (item.notes) s.addNotes(item.notes);
+    addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
+    return;
+  }
   pts.slice(0, n).forEach((p, k) => {
-    const x = 0.95 + k * (w + gap), y = 2.0, h = 4.35;
+    const x = bx + k * (w + gap), y = 2.0, h = 4.35;
     if (cst === "solid") {
       // solid filled card, full-width top accent bar, left-aligned text
       s.addShape(pptx.ShapeType.roundRect, {
@@ -560,16 +711,23 @@ function addCardsSlide(pptx, theme, deck, idx, item) {
     }
     if (p.title) {
       const tBase = { ...T.h3(theme.title), fontFace: fontFor(p.title) };
-      s.addText(richText(p.title, theme, tBase), {
-        x: tx, y: ty, w: tw, h: 1.1, align,
+      const tPt = tBase.fontSize || 24;
+      const tH = Math.min(1.6, (linesFor(p.title, tw, tPt) * tPt * 1.15) / 96 + 0.1);
+      const safeTitle = clampText(p.title, tw, tPt, 2);
+      s.addText(richText(safeTitle, theme, tBase), {
+        x: tx, y: ty, w: tw, h: tH + 0.1, align,
         ...tBase, valign: "top",
       });
-      ty += 1.15;
+      ty += tH + 0.12;
     }
     if (p.text) {
-      const bBase = { fontSize: 16, color: theme.text, fontFace: fontFor(p.text), lineSpacingMultiple: 1.6 };
-      s.addText(richText(p.text, theme, bBase), {
-        x: tx, y: ty, w: tw, h: h - (ty - y) - 0.3, align,
+      const maxH = Math.max(0.5, h - (ty - y) - 0.3);
+      const bPt = fitPt(p.text, tw, 16, maxH, 11, 1.6);
+      const maxLines = Math.max(1, Math.floor(maxH / ((bPt * 1.6) / 96)));
+      const safeText = clampText(p.text, tw, bPt, maxLines);
+      const bBase = { fontSize: bPt, color: theme.text, fontFace: fontFor(safeText), lineSpacingMultiple: 1.6 };
+      s.addText(richText(safeText, theme, bBase), {
+        x: tx, y: ty, w: tw, h: maxH, align,
         ...bBase, valign: "top",
       });
     }
@@ -582,16 +740,20 @@ function addCardsSlide(pptx, theme, deck, idx, item) {
 function addStatsSlide(pptx, theme, deck, idx, item) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
+  const art = resolveArt(item, deck);
+  const box = placeArt(s, pptx, theme, art);
+  const bx = box.x, bw = box.w;
+  const sideArt = art && (art.at === "left" || art.at === "right");
   ambient(s, pptx, theme);
-  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading);
+  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading, box, art && art.at === "left");
   const stats = item.stats.slice(0, 4);
   const n = stats.length;
   const sst = theme.statStyle || "cards";
   if (sst === "giant") {
     // no cards: enormous numbers in a row, thin dividers between
-    const cw = 11.43 / n;
+    const cw = bw / n;
     stats.forEach((st, k) => {
-      const x = 0.95 + k * cw;
+      const x = bx + k * cw;
       if (k > 0)
         s.addShape(pptx.ShapeType.rect, {
           x: x - 0.2, y: 2.2, w: 0.03, h: 2.6, fill: { color: theme.band }, line: { color: theme.band },
@@ -610,30 +772,30 @@ function addStatsSlide(pptx, theme, deck, idx, item) {
     stats.forEach((st, k) => {
       const y = 2.0 + k * 1.15;
       s.addShape(pptx.ShapeType.rect, {
-        x: 1.3, y, w: 10.73, h: 0.95,
+        x: bx + 0.35, y, w: bw - 0.7, h: 0.95,
         fill: { color: theme.band, transparency: 55 }, line: { color: theme.band, transparency: 100 },
       });
       s.addShape(pptx.ShapeType.rect, {
-        x: 1.3, y, w: 0.12, h: 0.95, fill: { color: theme.accent }, line: { color: theme.accent },
+        x: bx + 0.35, y, w: 0.12, h: 0.95, fill: { color: theme.accent }, line: { color: theme.accent },
       });
       s.addText(st.value, {
-        x: 1.65, y: y + 0.07, w: 2.6, h: 0.82, valign: "middle",
+        x: bx + 0.7, y: y + 0.07, w: 2.6, h: 0.82, valign: "middle",
         fontSize: 40, bold: true, color: theme.accent, fontFace: fontFor(st.value),
       });
       s.addText(st.label || "", {
-        x: 4.35, y: y + 0.07, w: 7.3, h: 0.82, valign: "middle",
+        x: bx + 3.4, y: y + 0.07, w: bw - 4.13, h: 0.82, valign: "middle",
         fontSize: 16, color: theme.text, fontFace: fontFor(st.label),
       });
     });
   } else {
   const cols = n <= 3 ? n : 2;
   const rows = Math.ceil(n / cols);
-  const gapX = 0.4, gapY = 0.4, availW = 11.43, availH = 4.5;
+  const gapX = 0.4, gapY = 0.4, availW = bw, availH = 4.5;
   const cw = (availW - (cols - 1) * gapX) / cols;
   const ch = (availH - (rows - 1) * gapY) / rows;
   stats.forEach((st, k) => {
     const col = k % cols, row = Math.floor(k / cols);
-    const x = 0.95 + col * (cw + gapX), y = 1.95 + row * (ch + gapY);
+    const x = bx + col * (cw + gapX), y = 1.95 + row * (ch + gapY);
     glassCard(s, pptx, theme, x, y, cw, ch, 0.16);
     s.addShape(pptx.ShapeType.rect, {
       x: x + 0.3, y: y + 0.32, w: 0.5, h: 0.06,
@@ -656,25 +818,52 @@ function addStatsSlide(pptx, theme, deck, idx, item) {
 function addTwoColSlide(pptx, theme, deck, idx, item) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
+  const art = resolveArt(item, deck);
+  const box = placeArt(s, pptx, theme, art);
+  const bx = box.x, bw = box.w;
+  const sideArt = art && (art.at === "left" || art.at === "right");
   ambient(s, pptx, theme);
-  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading);
+  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading, box, art && art.at === "left");
   const bullets = item.bullets || [];
   const mid = Math.ceil(bullets.length / 2);
   const left = bullets.slice(0, mid);
   const right = bullets.slice(mid);
   const hasTakeaway = !!(item.takeaway && item.takeaway.trim());
-  const panelH = hasTakeaway ? 3.9 : 4.6;
-  glassCard(s, pptx, theme, 1.3, 1.8, 5.25, panelH, 0.16);
-  glassCard(s, pptx, theme, 6.78, 1.8, 5.25, panelH, 0.16);
-  const lr = bulletRuns(left, theme, 16);
-  const rr = bulletRuns(right, theme, 16);
-  const textH = hasTakeaway ? 3.35 : 4.1;
-  if (lr.length) s.addText(lr, { x: 1.65, y: 2.05, w: 4.55, h: textH, valign: "top" });
-  if (rr.length) s.addText(rr, { x: 7.13, y: 2.05, w: 4.55, h: textH, valign: "top" });
-  if (hasTakeaway) takeawayStrip(s, pptx, theme, item.takeaway.trim(), 1.3, 5.85, 11.1);
-  if (item.icon) {
+  const maxPanelH = hasTakeaway ? 3.9 : 4.6;
+  const px1 = bx + 0.35, pw2 = (bw - 0.93) / 2, px2 = px1 + pw2 + 0.23;
+  const textW = pw2 - 0.7;
+  const leftTexts = left.map(btext), rightTexts = right.map(btext);
+  // shrink the bullet size until both columns fit the (possibly narrowed) panel
+  let bPt = 16, textH = maxPanelH - 0.55;
+  for (let i = 0; i < 8; i++) {
+    const need = Math.max(blockLines(leftTexts, textW, bPt), blockLines(rightTexts, textW, bPt), 1);
+    const needH = (need * bPt * 1.6) / 96 + 0.4;
+    if (needH <= maxPanelH - 0.55 || bPt <= 11) { textH = Math.min(maxPanelH - 0.55, needH); break; }
+    bPt -= 1;
+  }
+  const panelH = textH + 0.55;
+  // last-resort: clamp each bullet proportionally so text can never escape the panel
+  const capLines = Math.max(1, Math.floor(textH / ((bPt * 1.6) / 96)));
+  const clampCol = (arr, texts) => {
+    const total = Math.max(1, blockLines(texts, textW, bPt));
+    return arr.map((b, k) => {
+      const t = texts[k] || "";
+      const share = linesFor(t, textW, bPt) / total;
+      const allow = Math.max(1, Math.round(capLines * share));
+      const c = clampText(t, textW, bPt, allow);
+      return typeof b === "string" ? c : { ...b, text: c };
+    });
+  };
+  const lr = bulletRuns(clampCol(left, leftTexts), theme, bPt);
+  const rr = bulletRuns(clampCol(right, rightTexts), theme, bPt);
+  glassCard(s, pptx, theme, px1, 1.8, pw2, panelH, 0.16);
+  glassCard(s, pptx, theme, px2, 1.8, pw2, panelH, 0.16);
+  if (lr.length) s.addText(lr, { x: px1 + 0.35, y: 2.05, w: textW, h: textH, valign: "top" });
+  if (rr.length) s.addText(rr, { x: px2 + 0.35, y: 2.05, w: textW, h: textH, valign: "top" });
+  if (hasTakeaway) takeawayStrip(s, pptx, theme, item.takeaway.trim(), bx + 0.35, 5.85, bw - 0.33);
+  if (item.icon && !sideArt) {
     s.addText(item.icon, {
-      x: 11.9, y: 6.2, w: 0.9, h: 0.9, align: "center", fontSize: 36, fontFace: "Segoe UI Emoji",
+      x: bx + bw - 0.48, y: 6.2, w: 0.9, h: 0.9, align: "center", fontSize: 36, fontFace: "Segoe UI Emoji",
     });
   }
   if (item.notes) s.addNotes(item.notes);
@@ -684,6 +873,8 @@ function addTwoColSlide(pptx, theme, deck, idx, item) {
 function addQuoteSlide(pptx, theme, deck, idx, item) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bgDeep };
+  const qart = resolveArt(item, deck);
+  if (qart && qart.at === "bg") placeArt(s, pptx, theme, qart);
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
   s.addShape(pptx.ShapeType.ellipse, {
@@ -718,11 +909,15 @@ function addQuoteSlide(pptx, theme, deck, idx, item) {
 function addTimelineSlide(pptx, theme, deck, idx, item) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
+  const art = resolveArt(item, deck);
+  const box = placeArt(s, pptx, theme, art);
+  const bx = box.x, bw = box.w;
+  const sideArt = art && (art.at === "left" || art.at === "right");
   ambient(s, pptx, theme);
-  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading);
+  sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading, box, art && art.at === "left");
   const steps = (item.points || []).slice(0, 4);
   const n = steps.length;
-  const gap = 0.5, x0 = 0.95, avail = 11.43;
+  const gap = 0.5, x0 = bx, avail = bw;
   const w = (avail - (n - 1) * gap) / n;
   const nodeY = 2.55, nodeD = 0.66;
   // connector line behind the nodes
@@ -764,9 +959,21 @@ function addTimelineSlide(pptx, theme, deck, idx, item) {
 function addSplitSlide(pptx, theme, deck, idx, item) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
+  const art = resolveArt(item, deck);
+  if (art && art.at === "bg") placeArt(s, pptx, theme, art);
   ambient(s, pptx, theme);
   sectionHead(s, pptx, theme, idx, deck.slides.length, item.heading);
-  const px = 1.3, py = 1.95, pw = 4.2, ph = 3.9;
+  const hasArt = art && (art.at === "left" || art.at === "right");
+  const onRight = art && art.at === "right";
+  const px = onRight ? 7.83 : 1.3, py = 1.95, pw = 4.2, ph = 3.9;
+  const tx = onRight ? 1.3 : 6.1;
+  if (hasArt) {
+    s.addImage({ data: art.png, x: px, y: py, w: pw, h: ph, sizing: { type: "cover", w: pw, h: ph } });
+    s.addShape(pptx.ShapeType.roundRect, {
+      x: px, y: py, w: pw, h: ph, rectRadius: 0.18,
+      fill: { color: theme.bg, transparency: 100 }, line: { color: theme.accent, width: 2 },
+    });
+  } else {
   glassCard(s, pptx, theme, px, py, pw, ph, 0.18);
   // spotlight rings behind the icon
   s.addShape(pptx.ShapeType.ellipse, {
@@ -783,8 +990,9 @@ function addSplitSlide(pptx, theme, deck, idx, item) {
       fontSize: 110, fontFace: "Segoe UI Emoji",
     });
   }
+  } // end else (no art panel)
   const runs = bulletRuns(item.bullets, theme, 17);
-  if (runs.length) s.addText(runs, { x: 6.1, y: 1.95, w: 6.0, h: 3.7, valign: "middle" });
+  if (runs.length) s.addText(runs, { x: tx, y: 1.95, w: 6.0, h: 3.7, valign: "middle" });
   const tw = item.takeaway && item.takeaway.trim();
   if (tw) takeawayStrip(s, pptx, theme, tw, 1.3, 5.98, 10.73);
   if (item.notes) s.addNotes(item.notes);
@@ -795,6 +1003,8 @@ function addSplitSlide(pptx, theme, deck, idx, item) {
 function addHeroSlide(pptx, theme, deck, idx, item) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bgDeep };
+  const qart = resolveArt(item, deck);
+  if (qart && qart.at === "bg") placeArt(s, pptx, theme, qart);
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
   numberPill(s, pptx, theme, idx + 1);
@@ -826,6 +1036,8 @@ function addHeroSlide(pptx, theme, deck, idx, item) {
 function addClosingSlide(pptx, theme, deck, lang) {
   const s = newSlide(pptx, theme);
   s.background = { color: theme.bgDeep };
+  const cart = coverArtOf(deck);
+  if (cart) placeArt(s, pptx, theme, cart);
   s.addShape(pptx.ShapeType.ellipse, {
     x: 3.06, y: 1.2, w: 7.2, h: 7.2,
     fill: { color: theme.band, transparency: 40 }, line: { color: theme.band, transparency: 100 },

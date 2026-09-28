@@ -26,6 +26,7 @@ const I18N = {
     loadS2: "ဒီဇိုင်းနဲ့ အရောင်ရွေးနေတယ်…",
     loadS3: "layout ဆွဲနေတယ်…",
     loadS4: "PPTX ဖိုင်တည်ဆောက်နေတယ်…",
+    loadS5: "AI က ပုံတွေဆွဲပေးနေတယ်…",
     genDone: "ပြီးပါပြီ ✅ — အစမ်းကြည့်ပြီး PPTX ဒေါင်းလုဒ်လုပ်နိုင်ပါပြီ။",
     errTopic: "အကြောင်းအရာ အရင်ရိုက်ပါ။",
     errKey: "API key မရှိသေးပါ။ ဆက်တင်မှာ ထည့်ပါ။",
@@ -60,6 +61,7 @@ const I18N = {
     loadS2: "Choosing the design…",
     loadS3: "Laying out the slides…",
     loadS4: "Building the PPTX file…",
+    loadS5: "AI is painting the artwork…",
     genDone: "Done ✅ — preview it and download the PPTX.",
     errTopic: "Please enter a topic first.",
     errKey: "No API key. Add it in Settings.",
@@ -132,6 +134,46 @@ function layoutOf(item) {
   return "bullets";
 }
 
+// ---- AI artwork in preview ----
+function artInfo(item, artworks) {
+  const a = item && item.art;
+  if (!a || !artworks || !artworks.length) return null;
+  const w = artworks[a.n];
+  if (!w || !w.png) return null;
+  if (a.at !== "left" && a.at !== "right" && a.at !== "bg") return null;
+  return { png: w.png, at: a.at, motif: w.motif || "" };
+}
+function coverArtInfo(deck) {
+  const works = (deck && deck.artworks) || [];
+  const cc = deck && deck.coverArt;
+  if (!cc || cc.at !== "bg" || !works.length) return null;
+  const w = works[cc.n];
+  return w && w.png ? { png: w.png, at: "bg", motif: w.motif || "" } : null;
+}
+function isLightHex(hex) {
+  const h = String(hex || "000000").replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16) || 0, g = parseInt(h.slice(2, 4), 16) || 0, b = parseInt(h.slice(4, 6), 16) || 0;
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150;
+}
+// Wraps a slide-card's head+body with the AI artwork: bg = full-bleed faded
+// backdrop; left/right = tall side panel. center = for quote/hero/title.
+function withArt(head, body, art, c, cardStyle, center) {
+  if (!art)
+    return `<div class="slide-card" style="${cardStyle}">${head}${body}</div>`;
+  if (art.at === "bg") {
+    const ov = isLightHex(c.bg) ? "255,255,255" : "0,0,0";
+    const ctr = center ? "align-items:center;justify-content:center;text-align:center;" : "";
+    return `<div class="slide-card" style="${cardStyle}">` +
+      `<img src="${art.png}" alt="${esc(art.motif)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` +
+      `<div style="position:absolute;inset:0;background:rgba(${ov},0.55)"></div>` +
+      `<div style="position:relative;z-index:1;display:flex;flex-direction:column;flex:1;min-height:0;${ctr}">${head}${body}</div></div>`;
+  }
+  const img = `<img src="${art.png}" alt="${esc(art.motif)}" style="flex:0 0 32%;min-width:0;object-fit:cover;border-radius:10px;align-self:stretch">`;
+  const content = `<div style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;justify-content:center">${body}</div>`;
+  const row = art.at === "left" ? img + content : content + img;
+  return `<div class="slide-card" style="${cardStyle}">${head}<div style="display:flex;gap:14px;flex:1;min-height:0;margin-top:2%">${row}</div></div>`;
+}
+
 function headHtml(c, i, total, heading) {
   const hs = c.headerStyle || "kicker";
   const ac = `#${c.accent}`;
@@ -151,7 +193,7 @@ function headHtml(c, i, total, heading) {
     `<h3 style="color:#${c.title}">${hl(heading, ac)}</h3>`;
 }
 
-function slideHtml(item, i, total, c, ui) {
+function slideHtml(item, i, total, c, ui, artworks) {
   const layout = layoutOf(item);
   const head = headHtml(c, i, total, item.heading);
   const iconBg = item.icon
@@ -184,7 +226,7 @@ function slideHtml(item, i, total, c, ui) {
       </div>`).join("");
       body = `<div style="display:flex;gap:14px;margin-top:3%;flex-wrap:wrap">${cards}</div>`;
     }
-    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}${body}</div>`;
+    return withArt(head, body, artInfo(item, artworks), c, `background:#${c.bg};color:#${c.text}`);
   }
   if (layout === "cards") {
     const cst = c.cardStyle || "glass";
@@ -210,40 +252,40 @@ function slideHtml(item, i, total, c, ui) {
       return `<div class="pv-glass" style="flex:1;padding:16px;min-width:0;text-align:center">
         <div style="width:22px;height:4px;background:#${c.accent};border-radius:2px;margin:0 auto 12px"></div>${inner}</div>`;
     }).join("");
-    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
-      <div style="display:flex;gap:14px;margin-top:3%">${cards}</div></div>`;
+    return withArt(head, `<div style="display:flex;gap:14px;margin-top:3%">${cards}</div>`, artInfo(item, artworks), c, `background:#${c.bg};color:#${c.text}`);
   }
   if (layout === "stat") {
     const st = (item.stats && item.stats[0]) || item.stat || {};
     const bullets = bulletLis(item.bullets, c);
-    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}${head}
-      <div style="display:flex;gap:24px;margin-top:4%;align-items:flex-start">
+    const statArt = artInfo(item, artworks);
+    const statHead = statArt && statArt.at !== "bg" ? head : iconBg + head;
+    return withArt(statHead, `<div style="display:flex;gap:24px;margin-top:4%;align-items:flex-start">
         <div class="pv-glass" style="padding:18px 22px;min-width:34%">
           <div style="font-size:clamp(34px,4.5vw,58px);font-weight:800;color:#${c.accent};line-height:1">${esc(st.value)}</div>
           <div style="margin-top:8px;font-size:clamp(11px,1.3vw,16px);color:#${c.text};line-height:1.6">${esc(st.label)}</div>
         </div>
         <ul style="color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul>
-      </div></div>`;
+      </div>`, statArt, c, `background:#${c.bg};color:#${c.text}`);
   }
   if (layout === "quote") {
     const quote = item.quote || (item.bullets || []).map(bText).join(" ");
-    return `<div class="slide-card" style="background:#${c.bgDeep};color:#${c.text};justify-content:center;align-items:center;text-align:center">
-      <div class="snum">${i + 1} / ${total}</div>
+    const qArt = artInfo(item, artworks);
+    const qInner = `<div class="snum">${i + 1} / ${total}</div>
       <div style="font-size:90px;color:#${c.accent};line-height:0.6;margin-bottom:16px">&ldquo;</div>
       <div style="font-size:clamp(15px,2vw,24px);font-style:italic;color:#${c.title};max-width:80%;line-height:1.3">${hl(quote, `#${c.accent}`)}</div>
-      ${item.quoteBy ? `<div style="margin-top:14px;color:#9CA3AF;font-style:italic;font-size:12px">— ${esc(item.quoteBy)}</div>` : ""}
-    </div>`;
+      ${item.quoteBy ? `<div style="margin-top:14px;color:#9CA3AF;font-style:italic;font-size:12px">— ${esc(item.quoteBy)}</div>` : ""}`;
+    return withArt("", qInner, qArt && qArt.at === "bg" ? qArt : null, c,
+      `background:#${c.bgDeep};color:#${c.text};justify-content:center;align-items:center;text-align:center`, true);
   }
   if (layout === "two-col") {
     const mid = Math.ceil((item.bullets || []).length / 2);
     const l = bulletLis((item.bullets || []).slice(0, mid), c);
     const r = bulletLis((item.bullets || []).slice(mid), c);
-    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
-      <div style="display:flex;gap:28px;margin-top:3%">
+    return withArt(head, `<div style="display:flex;gap:28px;margin-top:3%">
         <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${l}</ul>
         <div style="width:2px;background:#${c.bgDeep};border-radius:1px"></div>
         <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${r}</ul>
-      </div>${takeawayHtml(item.takeaway, c)}</div>`;
+      </div>${takeawayHtml(item.takeaway, c)}`, artInfo(item, artworks), c, `background:#${c.bg};color:#${c.text}`);
   }
   if (layout === "timeline") {
     const steps = (item.points || []).slice(0, 4);
@@ -253,32 +295,37 @@ function slideHtml(item, i, total, c, ui) {
         ${st.title ? `<div style="font-weight:700;color:#${c.title};font-size:clamp(12px,1.6vw,19px);letter-spacing:-0.02em;line-height:1.15;margin-bottom:6px">${hl(st.title, `#${c.accent}`)}</div>` : ""}
         <div style="color:#${c.text};font-size:clamp(10px,1.2vw,15px);line-height:1.5">${hl(st.text, `#${c.accent}`)}</div>
       </div>`).join("");
-    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
-      <div style="position:relative;margin-top:5%">
+    return withArt(head, `<div style="position:relative;margin-top:5%">
         <div style="position:absolute;top:22px;left:12%;right:12%;height:3px;background:#${c.accent}66;border-radius:2px"></div>
         <div style="display:flex;gap:18px;position:relative">${nodes}</div>
-      </div></div>`;
+      </div>`, artInfo(item, artworks), c, `background:#${c.bg};color:#${c.text}`);
   }
   if (layout === "split") {
     const bullets = bulletLis(item.bullets, c);
-    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
-      <div style="display:flex;gap:24px;margin-top:3%;align-items:stretch">
-        <div class="pv-glass" style="flex:0 0 34%;display:flex;align-items:center;justify-content:center;min-height:220px;position:relative;overflow:hidden">
+    const spArt = artInfo(item, artworks);
+    const side = spArt && (spArt.at === "left" || spArt.at === "right") ? spArt : null;
+    const panel = side
+      ? `<img src="${side.png}" alt="${esc(side.motif)}" style="flex:0 0 34%;min-width:0;object-fit:cover;border-radius:10px;min-height:220px;align-self:stretch">`
+      : `<div class="pv-glass" style="flex:0 0 34%;display:flex;align-items:center;justify-content:center;min-height:220px;position:relative;overflow:hidden">
           <div style="position:absolute;width:170px;height:170px;border-radius:50%;border:3px solid #${c.accent}55"></div>
           <div style="position:absolute;width:120px;height:120px;border-radius:50%;background:#${c.accent}26"></div>
           <div style="font-size:96px;position:relative;z-index:1">${esc(item.icon || "")}</div>
-        </div>
-        <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,17px);line-height:1.6;align-self:center">${bullets}</ul>
-      </div>${takeawayHtml(item.takeaway, c)}</div>`;
+        </div>`;
+    const list = `<ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,17px);line-height:1.6;align-self:center">${bullets}</ul>`;
+    const row = side && side.at === "right" ? list + panel : panel + list;
+    const bgOnly = spArt && spArt.at === "bg" ? spArt : null;
+    return withArt(head, `<div style="display:flex;gap:24px;margin-top:3%;align-items:stretch">${row}</div>${takeawayHtml(item.takeaway, c)}`,
+      bgOnly, c, `background:#${c.bg};color:#${c.text}`);
   }
   if (layout === "hero") {
     const hero = item.hero || item.heading;
-    return `<div class="slide-card" style="background:#${c.bgDeep};color:#${c.text};justify-content:center;align-items:center;text-align:center">
-      <div class="snum">${i + 1} / ${total}</div>
+    const hArt = artInfo(item, artworks);
+    const hInner = `<div class="snum">${i + 1} / ${total}</div>
       <div style="position:absolute;width:min(46vw,340px);height:min(46vw,340px);border-radius:50%;border:4px solid #${c.accent}40;pointer-events:none"></div>
       <div style="font-size:clamp(30px,4.6vw,60px);font-weight:800;color:#${c.title};letter-spacing:-0.02em;line-height:1.05;max-width:82%;position:relative">${hl(hero, `#${c.accent}`)}</div>
-      ${item.sub ? `<div style="margin-top:18px;font-size:clamp(12px,1.6vw,18px);font-style:italic;color:#${c.text};max-width:70%;line-height:1.5">${hl(item.sub, `#${c.accent}`)}</div>` : ""}
-    </div>`;
+      ${item.sub ? `<div style="margin-top:18px;font-size:clamp(12px,1.6vw,18px);font-style:italic;color:#${c.text};max-width:70%;line-height:1.5">${hl(item.sub, `#${c.accent}`)}</div>` : ""}`;
+    return withArt("", hInner, hArt && hArt.at === "bg" ? hArt : null, c,
+      `background:#${c.bgDeep};color:#${c.text};justify-content:center;align-items:center;text-align:center`, true);
   }
   const bs = c.bulletStyle || "chips";
   const bullets = bulletLis(item.bullets, c, bs);
@@ -288,10 +335,9 @@ function slideHtml(item, i, total, c, ui) {
       : bs === "numerals"
       ? `<div style="border-left:4px solid #${c.accent};padding-left:20px;margin-top:4%"><ul style="color:#${c.text};margin:0;padding:0;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul></div>`
       : `<div style="border-top:2px solid #${c.band};border-bottom:2px solid #${c.band};padding:14px 0;margin-top:4%"><ul style="color:#${c.text};margin:0;padding:0;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${bullets}</ul></div>`;
-  return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}${headHtml(c, i, total, item.heading)}
-    ${listWrap}
-    ${takeawayHtml(item.takeaway, c)}
-  </div>`;
+  const bArt = artInfo(item, artworks);
+  const bHead = bArt && bArt.at !== "bg" ? headHtml(c, i, total, item.heading) : iconBg + headHtml(c, i, total, item.heading);
+  return withArt(bHead, `${listWrap}${takeawayHtml(item.takeaway, c)}`, bArt, c, `background:#${c.bg};color:#${c.text}`);
 }
 
 function renderPreview(deck, theme, lang, designChoice) {
@@ -308,20 +354,29 @@ function renderPreview(deck, theme, lang, designChoice) {
          <span class="pal-dots">${palDots}</span>
        </div>`
     : "";
-  html +=
-    `<div class="slide-card title-slide" style="background:#${c.bgDeep};color:#${c.text}">
-      ${deck.icon ? `<div style="font-size:64px;margin-bottom:8px">${esc(deck.icon)}</div>` : ""}
-      <div class="kicker" style="color:#${c.accent}">${esc(t("kicker"))}</div>
-      <h1 style="color:#${c.title}">${esc(deck.title)}</h1>
-      ${deck.subtitle ? `<div class="subtitle" style="color:#${c.title}">${esc(deck.subtitle)}</div>` : ""}
-    </div>`;
-  deck.slides.forEach((s, i) => { html += slideHtml(s, i + 1, total, c, uiLang); });
-  html +=
-    `<div class="slide-card closing" style="background:#${c.bgDeep};color:#${c.text}">
-      <h2 style="color:#${c.title};font-size:clamp(26px,4vw,44px);font-weight:800;letter-spacing:-0.02em;line-height:1.1;margin:0 0 12px">${lang === "en" ? "Thank You" : "ကျေးဇူးတင်ပါတယ်"}</h2>
-      <div style="color:#${c.text};font-size:clamp(12px,1.5vw,18px);line-height:1.6">${esc(deck.title)}</div>
-      <div style="margin-top:10px;color:#${c.accentSoft};font-style:italic;font-size:clamp(11px,1.4vw,16px)">${esc(t("closingQ"))}</div>
-    </div>`;
+  const cov = coverArtInfo(deck);
+  const titleInner =
+    `${deck.icon ? `<div style="font-size:64px;margin-bottom:8px">${esc(deck.icon)}</div>` : ""}
+     <div class="kicker" style="color:#${c.accent}">${esc(t("kicker"))}</div>
+     <h1 style="color:#${c.title}">${esc(deck.title)}</h1>
+     ${deck.subtitle ? `<div class="subtitle" style="color:#${c.title}">${esc(deck.subtitle)}</div>` : ""}`;
+  html += cov
+    ? `<div class="slide-card title-slide" style="position:relative;overflow:hidden;background:#${c.bgDeep};color:#${c.text}">` +
+      `<img src="${cov.png}" alt="${esc(cov.motif)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.55">` +
+      `<div style="position:absolute;inset:0;background:linear-gradient(180deg,#${c.bgDeep}E8,#${c.bgDeep}A6 45%,#${c.bgDeep}E8)"></div>` +
+      `<div style="position:relative;z-index:1">${titleInner}</div></div>`
+    : `<div class="slide-card title-slide" style="background:#${c.bgDeep};color:#${c.text}">${titleInner}</div>`;
+  deck.slides.forEach((s, i) => { html += slideHtml(s, i + 1, total, c, uiLang, deck.artworks); });
+  const closeInner =
+    `<h2 style="color:#${c.title};font-size:clamp(26px,4vw,44px);font-weight:800;letter-spacing:-0.02em;line-height:1.1;margin:0 0 12px">${lang === "en" ? "Thank You" : "ကျေးဇူးတင်ပါတယ်"}</h2>
+     <div style="color:#${c.text};font-size:clamp(12px,1.5vw,18px);line-height:1.6">${esc(deck.title)}</div>
+     <div style="margin-top:10px;color:#${c.accentSoft};font-style:italic;font-size:clamp(11px,1.4vw,16px)">${esc(t("closingQ"))}</div>`;
+  html += cov
+    ? `<div class="slide-card closing" style="position:relative;overflow:hidden;background:#${c.bgDeep};color:#${c.text}">` +
+      `<img src="${cov.png}" alt="${esc(cov.motif)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.55">` +
+      `<div style="position:absolute;inset:0;background:linear-gradient(180deg,#${c.bgDeep}E8,#${c.bgDeep}A6 45%,#${c.bgDeep}E8)"></div>` +
+      `<div style="position:relative;z-index:1">${closeInner}</div></div>`
+    : `<div class="slide-card closing" style="background:#${c.bgDeep};color:#${c.text}">${closeInner}</div>`;
   $("previewSlides").innerHTML = html;
   $("previewEmpty").classList.add("hidden");
   $("downloadBtn").classList.remove("hidden");
@@ -357,8 +412,8 @@ let loadTimer = null;
 
 function showLoading(autoDesign) {
   const steps = autoDesign
-    ? [t("loadS0"), t("loadS1"), t("loadS2"), t("loadS3"), t("loadS4")]
-    : [t("loadS1"), t("loadS2"), t("loadS3"), t("loadS4")];
+    ? [t("loadS0"), t("loadS1"), t("loadS2"), t("loadS5"), t("loadS3"), t("loadS4")]
+    : [t("loadS1"), t("loadS2"), t("loadS5"), t("loadS3"), t("loadS4")];
   let i = 0;
   $("previewEmpty").classList.add("hidden");
   $("downloadBtn").classList.add("hidden");

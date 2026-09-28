@@ -9,7 +9,8 @@
   "dependencies": {
     "adm-zip": "^0.6.1",
     "express": "^4.21.2",
-    "pptxgenjs": "^4.0.1"
+    "pptxgenjs": "^4.0.1",
+    "sharp": "^0.34.4"
   },
   "engines": {
     "node": ">=22"

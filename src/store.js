@@ -124,6 +124,20 @@ function deleteDeck(id) {
   return db.prepare("DELETE FROM decks WHERE id = ?").run(id).changes > 0;
 }
 
+function recentArtMotifs(limit = 12) {
+  const rows = db.prepare("SELECT deck_json FROM decks ORDER BY id DESC LIMIT ?").all(limit);
+  const motifs = [];
+  for (const r of rows) {
+    try {
+      const d = JSON.parse(r.deck_json);
+      (d.artworks || []).forEach((a) => {
+        if (a && a.motif) motifs.push(a.motif);
+      });
+    } catch { /* ignore corrupt rows */ }
+  }
+  return motifs.slice(0, limit);
+}
+
 module.exports = {
   getSetting,
   setSetting,
@@ -131,6 +145,7 @@ module.exports = {
   setSecret,
   saveDeck,
   recentPalettes,
+  recentArtMotifs,
   listDecks,
   getDeck,
   deleteDeck,

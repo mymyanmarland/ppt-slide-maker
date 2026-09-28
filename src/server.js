@@ -3,6 +3,7 @@ const express = require("express");
 const path = require("path");
 const store = require("./store");
 const gw = require("./gateway");
+const art = require("./art");
 const { buildPptx } = require("./pptx");
 const design = require("./design");
 const { THEMES, THEME_KEYS } = require("./themes");
@@ -97,6 +98,23 @@ app.post("/api/generate", async (req, res) => {
       const retry = await inventDesign(banned2, !wantLight, 1.25);
       if (!design.bgTooClose(retry.bg, recent)) theme = retry;
     }
+    // AI illustrator: paint 3 bespoke SVG artworks for THIS deck (never stock, never repeated).
+    // Never fatal — a deck without artwork still generates fine.
+    let artworks = [];
+    try {
+      artworks = await art.generateArtworks({
+        topic: cleanTopic,
+        detail,
+        design: theme,
+        lang: useLang,
+        baseUrl: c.baseUrl,
+        apiKey: c.apiKey,
+        model: useModel,
+        avoidMotifs: store.recentArtMotifs(12),
+      });
+    } catch (e) {
+      console.warn("[art] illustration failed:", String((e && e.message) || e).slice(0, 160));
+    }
     const designBrief =
       `VISUAL DIRECTION — this deck has a brand-new, one-of-a-kind visual identity. Make every choice serve it:\n` +
       `- Design name: "${theme.name}". Palette: background #${theme.bg} (deep #${theme.bgDeep}), signature accent #${theme.accent} (soft #${theme.accentSoft}), muted surface #${theme.band}.\n` +
@@ -108,7 +126,12 @@ app.post("/api/generate", async (req, res) => {
       `- Let the mood shape composition: an energetic topic earns punchy hero statements and dynamic timelines; ` +
       `an elegant topic earns refined quotes and calm two-column spreads; a data-heavy topic earns stats grids; ` +
       `a cultural topic earns warm storytelling cards.\n` +
-      `- Vary your layout rhythm to the topic's narrative arc — never a flat, uniform sequence.`;
+      `- Vary your layout rhythm to the topic's narrative arc — never a flat, uniform sequence.` +
+      (artworks.length
+        ? `\n- ARTWORK — 3 bespoke illustrations were painted for this deck: ` +
+          artworks.map((a, i) => `#${i} "${a.motif}"`).join("; ") +
+          `. Cast them via each slide's "art" field and the deck's "coverArt" — match motif to subject.`
+        : "");
 
     const raw = await gw.chatCompletion(
       c.baseUrl,
@@ -122,6 +145,9 @@ app.post("/api/generate", async (req, res) => {
     if (!parsed) return res.status(502).json({ error: "no-json", detail: raw.slice(0, 300) });
     const deck = gw.normalizeDeck(parsed, count);
     if (!deck.title) return res.status(502).json({ error: "bad-deck" });
+    deck.artworks = artworks;
+    deck.coverArt = parsed.coverArt;
+    gw.finalizeArt(deck);
     deck.design = {
       name: theme.name,
       reason: theme.reason,

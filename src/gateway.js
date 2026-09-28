@@ -57,36 +57,49 @@ function deckSystemPrompt(topic, detail, count, lang, designBrief) {
     '  "bullets": [{"icon":"⚡","text":"Full informative sentence …"}, …].',
     '- Give every content slide a "takeaway": ONE punchy sentence (max 20 words) — the single',
     "  key message of the slide, specific and memorable. It renders as a highlighted strip.",
-    '- Give every slide a "layout" — visual variety is MANDATORY, never a text-only deck:',
-    '  • "bullets" — heading + bullet list. Use for at most HALF the slides.',
-    '  • "timeline" — a horizontal 3-4 step process: how it works, workflow, history, evolution.',
-    '    Fill "points": [{"title":"Step name (max 6 words)","text":"one punchy line, max 12 words"}, …] (3 or 4).',
-    '  • "split" — giant icon art panel on the left, bullets on the right.',
-    '    Best for "what is X" / definition slides with a strong single icon.',
-    '  • "hero" — ONE massive statement or number as the entire slide message.',
+    "VISUAL VOCABULARY — layouts are tools, not templates. You are the ART DIRECTOR:",
+    "- Shape the layout rhythm to the topic's narrative arc. A \"what is X\" opener earns",
+    "  a split or hero; a process earns a timeline; proof points earn stats; features earn cards;",
+    "  a comparison earns two-col; a voice worth hearing earns a quote.",
+    "- NEVER a flat, uniform sequence — but never force a layout the content doesn't earn.",
+    '- Use at least 3 DIFFERENT layouts per deck; "bullets" for at most HALF the slides.',
+    '  \u2022 "bullets" — heading + bullet list.',
+    '  \u2022 "timeline" — a horizontal 3-4 step process: how it works, workflow, history, evolution.',
+    '    Fill "points": [{"title":"Step name (max 6 words)","text":"one punchy line, max 12 words"}, \u2026] (3 or 4).',
+    '  \u2022 "split" — illustration art panel on one side, bullets on the other.',
+    "    Best for \"what is X\" / definition slides. The deck's bespoke artwork fills the panel —",
+    '    give this slide "art" with "at": "left" or "right".',
+    '  \u2022 "hero" — ONE massive statement or number as the entire slide message.',
     '    Fill "hero": "==90%== of failures are config errors" (max 10 words) and',
-    '    "sub": "one supporting line (max 15 words)". Use EXACTLY once per deck,',
+    '    "sub": "one supporting line (max 15 words)". Use at most once per deck,',
     "    for the single most striking insight.",
-    '  • "cards" — 3 feature cards in a row, like a modern SaaS pitch deck.',
-    '    Fill "points": [{"icon":"🔗","title":"Complete meaningful heading","text":"1-2 sentences, up to 30 words, with a concrete detail or example"}, …] (exactly 3).',
+    '  \u2022 "cards" — 3 feature cards in a row, like a modern SaaS pitch deck.',
+    '    Fill "points": [{"icon":"\U0001F517","title":"Complete meaningful heading","text":"1-2 sentences, up to 30 words, with a concrete detail or example"}, \u2026] (exactly 3).',
     "    Titles must follow the MEANINGFUL TITLES rule — never a fragment.",
-    '  • "stats" — a 2x2 grid of big striking numbers on glass cards.',
-    '    Fill "stats": [{"value":"30%","label":"full meaningful phrase saying what this number means"}, …] (2 to 4 items).',
+    '  \u2022 "stats" — a 2x2 grid of big striking numbers on glass cards.',
+    '    Fill "stats": [{"value":"30%","label":"full meaningful phrase saying what this number means"}, \u2026] (2 to 4 items).',
     '    Use ONLY for real, striking figures from the topic — percentages, market size, adoption',
     '    numbers, survey results. If the topic has no meaningful numbers, use a DIFFERENT layout;',
     '    NEVER invent trivial counts like 1/2/3 just to fill a stats grid.',
-    '  • "stat" — legacy single big number; prefer "stats" instead.',
-    '  • "two-col" — heading + bullets split into two balanced columns.',
-    '  • "quote" — one memorable quote/statement as the hero; put it in "quote": "..."',
+    '  \u2022 "stat" — legacy single big number; prefer "stats" instead.',
+    '  \u2022 "two-col" — heading + bullets split into two balanced columns.',
+    '  \u2022 "quote" — one memorable quote/statement as the hero; put it in "quote": "..."',
     '    plus optional "quoteBy": "who said it". Use at most once or twice.',
-    "- COMPOSITION RULE: every deck must use at least 3 DIFFERENT layouts.",
-    '  Include at least 1 "timeline" or "split", exactly 1 "hero",',
-    '  at least 1 "stats" grid and at least 1 "cards" layout.',
+    "",
+    "ART DIRECTION — 3 bespoke illustrations were painted for THIS deck and no other (see ARTWORK below).",
+    "Cast them across the slides like a magazine art director — imagery is what makes a deck unforgettable:",
+    '- Every content slide gets "art": {"n": 0|1|2, "at": "right|left|bg|none"}.',
+    '  "right"/"left" = the illustration fills a tall side panel (perfect for bullets, cards, stats).',
+    '  "bg" = full-bleed faded backdrop (quote, hero, or very sparse slides ONLY — never behind dense text).',
+    '  "none" = let typography carry the slide.',
+    "- Give art to at least 60% of slides; never use the same placement twice in a row;",
+    "  match each artwork's motif to the slide's subject (a slide about networks gets the network artwork).",
+    '- The deck also gets "coverArt": {"n": 0, "at": "bg"} for the title slide (or "none").',
     "",
     "Output STRICT JSON only — no explanations, no markdown fences. The JSON shape:",
-    '{ "title": "...", "subtitle": "...", "icon": "🚀", "slides": [',
+    '{ "title": "...", "subtitle": "...", "icon": "🚀", "coverArt": {"n": 0, "at": "bg"}, "slides": [',
     '  { "heading": "...", "bullets": [{"icon":"⚡","text":"..."}], "takeaway": "...", "notes": "...",',
-    '    "icon": "📊", "layout": "bullets",',
+    '    "icon": "📊", "layout": "bullets", "art": {"n": 1, "at": "right"},',
     '    "stats": [{"value": "", "label": ""}],',
     '    "points": [{"icon": "", "title": "", "text": ""}],',
     '    "hero": "", "sub": "",',
@@ -249,13 +262,14 @@ function normalizeDeck(raw, count) {
         quoteBy: String(s?.quoteBy || "").trim().slice(0, 120),
         hero: String(s?.hero || "").trim().slice(0, 140),
         sub: String(s?.sub || "").trim().slice(0, 200),
+        art: s?.art,
       };
     })
     .filter((s) => s.heading || s.bullets.length > 0 || s.quote || s.points.length || s.stats.length || s.hero);
   // enforce exact slide count: trim extras, pad with empty slots if short
   const fixed = norm.slice(0, count);
   while (fixed.length < count)
-    fixed.push({ heading: "", bullets: [], takeaway: "", notes: "", icon: "", layout: "bullets", stats: [], points: [], hero: "", sub: "", stat: { value: "", label: "" }, quote: "", quoteBy: "" });
+    fixed.push({ heading: "", bullets: [], takeaway: "", notes: "", icon: "", layout: "bullets", stats: [], points: [], hero: "", sub: "", stat: { value: "", label: "" }, quote: "", quoteBy: "", art: { n: 0, at: "none" } });
   return {
     title: String(raw.title || "").trim().slice(0, 140),
     subtitle: String(raw.subtitle || "").trim().slice(0, 200),
@@ -264,7 +278,82 @@ function normalizeDeck(raw, count) {
   };
 }
 
-// Prompt that expands a bare topic into a rich "details" brief for deck generation.
+// Prompt for the "AI illustrator": paints 3 bespoke SVG artworks for the deck.
+// The gateway has no image models, so the LLM paints vector art directly.
+function artSystemPrompt(topic, design, lang, avoid) {
+  const d = design || {};
+  const pal = ["bg", "bgDeep", "band", "accent", "accentSoft"]
+    .map((k) => `${k}=#${d[k] || "000000"}`)
+    .join(" ");
+  const avoidLine =
+    Array.isArray(avoid) && avoid.length
+      ? "Do NOT repeat these recent motifs, invent clearly different imagery:\n" +
+        avoid.map((m) => `- ${m}`).join("\n") + "\n"
+      : "";
+  return (
+    "You are a celebrated vector illustrator. Paint 3 ORIGINAL, premium-quality SVG illustrations " +
+    `for a slide deck about "${topic}". These will appear inside slides next to text, so they must be ` +
+    "beautiful at a glance and never generic stock-looking.\n" +
+    avoidLine +
+    `DESIGN IDENTITY to honor — palette (use ONLY these + white/black with transparency): ${pal}. ` +
+    `Mood: ${d.mood || "elegant"}. Motif language: ${d.decor || "dots"}.\n` +
+    "The 3 artworks must be CLEARLY different from each other:\n" +
+    "1. FLOWING ABSTRACT — sweeping shapes, gradients and light evoking the topic's mood.\n" +
+    "2. THEMATIC SCENE — simple iconic objects drawn from basic shapes (e.g. containers, waves, " +
+    "circuits, leaves) that a viewer instantly connects to the topic.\n" +
+    "3. MACRO DETAIL — a close-up geometric pattern or texture, bolder and more graphic.\n" +
+    "STRICT technical rules:\n" +
+    '- Each artwork is ONE self-contained <svg> with viewBox="0 0 1600 900" and xmlns set.\n' +
+    "- FLAT VECTOR style: <rect>, <circle>, <ellipse>, <path>, <polygon> with solid fills and " +
+    "<linearGradient>/<radialGradient>. NO <text> elements (fonts cannot be trusted), NO <script>, " +
+    "NO event handlers, NO external images or links, NO filters.\n" +
+    "- Compose for a 16:9 frame; keep the edges clean; leave some breathing room (not every pixel filled).\n" +
+    "- Each svg must be UNDER 12000 characters.\n" +
+    (lang === "en"
+      ? 'Write "motif" in English (3-6 words describing the imagery).\n'
+      : '"motif" ကို မြန်မာလို ၃-၆ လုံးနဲ့ ရေးပါ (ပုံရဲ့ အကြောင်းအရာ).\n') +
+    "Return EXACTLY 3 artworks in the array — a response with fewer than 3 is a failure, " +
+    "always finish all three. Keep each svg COMPACT (under 6000 characters) so all three fit. " +
+    "Reply with ONLY this JSON and nothing else:\n" +
+    '{"artworks": [{"motif": "...", "svg": "<svg ...>...</svg>"}, {"motif": "...", "svg": "<svg ...>...</svg>"}, {"motif": "...", "svg": "<svg ...>...</svg>"}]}'
+  );
+}
+
+// ---- AI artwork placement ---------------------------------------------------
+// Each slide may carry art: { n: 0|1|2, at: "left"|"right"|"bg"|"none" }.
+const ART_PLACEMENTS = ["left", "right", "bg", "none"];
+
+function cleanArt(v, maxN) {
+  const n = Number(v && v.n);
+  const at = String((v && v.at) || "none");
+  if (!ART_PLACEMENTS.includes(at)) return { n: 0, at: "none" };
+  if (!Number.isInteger(n) || n < 0 || n >= maxN) return { n: 0, at: "none" };
+  return { n, at };
+}
+
+// Layouts that may carry a full-bleed faded art background.
+const BG_OK = new Set(["quote", "hero", "split", "bullets", "stat"]);
+
+// Validate + coerce every slide's art choice now that the artwork count is known.
+function finalizeArt(deck) {
+  if (!deck || !Array.isArray(deck.slides)) return deck;
+  const n = (deck.artworks || []).length;
+  deck.coverArt = cleanArt(deck.coverArt, n);
+  if (!["bg", "none"].includes(deck.coverArt.at)) deck.coverArt.at = "none";
+  let prevAt = "none";
+  deck.slides.forEach((s) => {
+    s.art = cleanArt(s.art, n);
+    const L = s.layout;
+    if (s.art.at === "bg" && !BG_OK.has(L)) s.art.at = "right"; // dense grids: side panel, not backdrop
+    if ((L === "quote" || L === "hero") && (s.art.at === "left" || s.art.at === "right")) s.art.at = "bg";
+    if (s.art.at !== "none" && s.art.at === prevAt) {
+      // never the same placement twice in a row
+      s.art.at = s.art.at === "right" ? "left" : s.art.at === "left" ? "right" : "none";
+    }
+    prevAt = s.art.at;
+  });
+  return deck;
+}
 function detailsSystemPrompt(topic, lang) {
   const langLine = lang === "en"
     ? "Write the brief in English."
@@ -340,6 +429,9 @@ module.exports = {
   deckSystemPrompt,
   designSystemPrompt,
   detailsSystemPrompt,
+  artSystemPrompt,
+  cleanArt,
+  finalizeArt,
   chatCompletion,
   listModels,
   extractDeckJson,
