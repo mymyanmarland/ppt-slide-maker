@@ -96,9 +96,56 @@ function esc(s) {
   return String(s || "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
 
+function layoutOf(item) {
+  if (item.layout === "stat" && item.stat && item.stat.value) return "stat";
+  if (item.layout === "quote" && (item.quote || (item.bullets || []).length)) return "quote";
+  if (item.layout === "two-col" && (item.bullets || []).length > 2) return "two-col";
+  return "bullets";
+}
+
 function slideHtml(item, i, total, c, ui) {
+  const layout = layoutOf(item);
+  const head =
+    `<div class="snum" style="color:#${c.footer}">${i + 1} / ${total}</div>` +
+    `<div style="width:44px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:12px"></div>` +
+    `<h3 style="color:#${c.title}">${esc(item.heading)}</h3>`;
+  const iconBg = item.icon
+    ? `<div style="position:absolute;right:4%;top:18%;font-size:110px;opacity:0.16;pointer-events:none">${esc(item.icon)}</div>`
+    : "";
+
+  if (layout === "stat") {
+    const bullets = (item.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("");
+    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}${head}
+      <div style="display:flex;gap:24px;margin-top:4%;align-items:flex-start">
+        <div style="background:#${c.bgDeep};border-left:5px solid #${c.accent};border-radius:10px;padding:18px 22px;min-width:34%">
+          <div style="font-size:clamp(34px,4.5vw,58px);font-weight:800;color:#${c.accent};line-height:1">${esc(item.stat.value)}</div>
+          <div style="margin-top:8px;font-size:clamp(11px,1.3vw,15px);color:#${c.muted}">${esc(item.stat.label)}</div>
+        </div>
+        <ul style="color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.7">${bullets}</ul>
+      </div></div>`;
+  }
+  if (layout === "quote") {
+    const quote = item.quote || (item.bullets || []).join(" ");
+    return `<div class="slide-card" style="background:#${c.bgDeep};color:#${c.text};justify-content:center;align-items:center;text-align:center">
+      <div class="snum" style="color:#${c.footer}">${i + 1} / ${total}</div>
+      <div style="font-size:90px;color:#${c.accent};line-height:0.6;margin-bottom:16px">&ldquo;</div>
+      <div style="font-size:clamp(15px,2vw,24px);font-style:italic;color:#${c.title};max-width:80%;line-height:1.5">${esc(quote)}</div>
+      ${item.quoteBy ? `<div style="margin-top:14px;color:#${c.muted}">— ${esc(item.quoteBy)}</div>` : ""}
+    </div>`;
+  }
+  if (layout === "two-col") {
+    const mid = Math.ceil((item.bullets || []).length / 2);
+    const l = (item.bullets || []).slice(0, mid).map((b) => `<li>${esc(b)}</li>`).join("");
+    const r = (item.bullets || []).slice(mid).map((b) => `<li>${esc(b)}</li>`).join("");
+    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
+      <div style="display:flex;gap:28px;margin-top:3%">
+        <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.7">${l}</ul>
+        <div style="width:2px;background:#${c.bgDeep};border-radius:1px"></div>
+        <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.7">${r}</ul>
+      </div></div>`;
+  }
   const bullets = (item.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("");
-  return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">
+  return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}
     <div class="snum" style="color:#${c.footer}">${i + 1} / ${total}</div>
     <div style="width:44px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:12px"></div>
     <h3 style="color:#${c.title}">${esc(item.heading)}</h3>
@@ -113,6 +160,7 @@ function renderPreview(deck, themeKey, lang) {
   const total = deck.slides.length + 2;
   let html =
     `<div class="slide-card title-slide" style="background:#${c.bgDeep};color:#${c.text}">
+      ${deck.icon ? `<div style="font-size:64px;margin-bottom:8px">${esc(deck.icon)}</div>` : ""}
       <div class="kicker" style="color:#${c.accent}">${esc(t("kicker"))}</div>
       <h1 style="color:#${c.title}">${esc(deck.title)}</h1>
       ${deck.subtitle ? `<div class="subtitle" style="color:#${c.muted}">${esc(deck.subtitle)}</div>` : ""}
