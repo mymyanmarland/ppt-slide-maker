@@ -593,20 +593,30 @@ function addClosingSlide(pptx, theme, deck, lang) {
 
 // ---- slide transitions (post-process the pptx zip) --------------------------
 
-const TRANSITIONS = [
-  '<p:transition spd="med" advOnClk="1"><p:fade thruBlk="1"/></p:transition>',
-  '<p:transition spd="med" advOnClk="1"><p:push thruBlk="1" dir="l"/></p:transition>',
-  '<p:transition spd="med" advOnClk="1"><p:wipe thruBlk="1" dir="l"/></p:transition>',
-  '<p:transition spd="med" advOnClk="1"><p:cover thruBlk="1" dir="d"/></p:transition>',
-];
+const TRANSITION_XML = {
+  fade: '<p:transition spd="med" advOnClk="1"><p:fade thruBlk="1"/></p:transition>',
+  push: '<p:transition spd="med" advOnClk="1"><p:push thruBlk="1" dir="l"/></p:transition>',
+  wipe: '<p:transition spd="med" advOnClk="1"><p:wipe thruBlk="1" dir="l"/></p:transition>',
+  cover: '<p:transition spd="med" advOnClk="1"><p:cover thruBlk="1" dir="d"/></p:transition>',
+};
 
-function applyTransitions(pptxBuffer) {
+// Transition sequences per topic mood, chosen by the AI design director.
+const MOOD_TRANSITIONS = {
+  energetic: ["push", "wipe", "push", "cover"],
+  elegant: ["fade", "fade", "cover", "fade"],
+  bold: ["cover", "wipe", "push", "cover"],
+  calm: ["fade", "wipe", "fade", "fade"],
+};
+const DEFAULT_TRANSITIONS = ["fade", "push", "wipe", "cover"];
+
+function applyTransitions(pptxBuffer, mood) {
+  const seq = MOOD_TRANSITIONS[mood] || DEFAULT_TRANSITIONS;
   const zip = new AdmZip(Buffer.from(pptxBuffer));
   const entries = zip.getEntries().filter((e) => /^ppt\/slides\/slide\d+\.xml$/.test(e.entryName));
   entries.forEach((entry, i) => {
     let xml = entry.getData().toString("utf8");
     if (xml.includes("<p:transition")) return;
-    const trans = TRANSITIONS[i % TRANSITIONS.length];
+    const trans = TRANSITION_XML[seq[i % seq.length]];
     if (!xml.includes("</p:cSld>")) return;
     xml = xml.replace("</p:cSld>", "</p:cSld>" + trans);
     zip.updateFile(entry.entryName, Buffer.from(xml, "utf8"));
@@ -630,7 +640,7 @@ function resolveLayout(item) {
   return "bullets";
 }
 
-async function buildPptx(deck, themeKey, lang = "my") {
+async function buildPptx(deck, themeKey, lang = "my", mood) {
   const theme = THEMES[themeKey] ? THEMES[themeKey] : THEMES["navy-gold"];
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: "WIDE169", width: 13.33, height: 7.5 });
@@ -655,7 +665,7 @@ async function buildPptx(deck, themeKey, lang = "my") {
   addClosingSlide(pptx, theme, deck, lang);
 
   const raw = await pptx.write({ outputType: "nodebuffer" });
-  return applyTransitions(raw);
+  return applyTransitions(raw, mood);
 }
 
 module.exports = { buildPptx, THEME_KEYS };

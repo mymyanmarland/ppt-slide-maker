@@ -3,7 +3,7 @@
 
 const DEFAULT_BASE_URL = "https://claude-n-codex.com:8443/v1";
 
-function deckSystemPrompt(topic, detail, count, lang) {
+function deckSystemPrompt(topic, detail, count, lang, designBrief) {
   const t = String(topic || "").trim().slice(0, 300);
   const d = String(detail || "").trim().slice(0, 1200);
   const isMy = lang !== "en";
@@ -93,6 +93,7 @@ function deckSystemPrompt(topic, detail, count, lang) {
     '    "stat": {"value": "", "label": ""}, "quote": "", "quoteBy": "" }',
     "] }",
     `Topic: ${t}`,
+    designBrief ? String(designBrief).trim().slice(0, 600) : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -278,9 +279,29 @@ function detailsSystemPrompt(topic, lang) {
   );
 }
 
+// Prompt for the "AI design director": analyzes the topic and picks the visual design.
+function designSystemPrompt(topic, detail, lang, themeKeys) {
+  const langLine = lang === "en"
+    ? 'Write "reason" in English, one short sentence.'
+    : '"reason" ကို မြန်မာလို တစ်ကြောင်းတည်း တိုတိုရေးပါ။';
+  return (
+    "You are an art director for slide presentations. Analyze the topic below and choose the visual design that fits it best.\n" +
+    `Topic: ${topic}\n` +
+    (detail ? `Extra context: ${String(detail).slice(0, 400)}\n` : "") +
+    `Available theme keys: ${themeKeys.join(", ")}.\n` +
+    "Theme guide: midnight-glass = sleek modern tech; violet = creative/futuristic tech; navy-gold = premium/luxury; " +
+    "corporate = business/finance; minimal = clean formal/education; impact = bold, loud, youth/entertainment; " +
+    "myanmar = Myanmar culture, tradition, food, festivals.\n" +
+    "Also choose a transition mood for the slide animations: energetic (fast, punchy), elegant (smooth, calm), bold (dramatic), or calm (gentle) — match it to the topic's energy.\n" +
+    langLine + "\n" +
+    'Reply with ONLY this JSON and nothing else: {"theme":"<one key from the list>","mood":"energetic|elegant|bold|calm","reason":"<why this theme fits the topic>"}.'
+  );
+}
+
 module.exports = {
   DEFAULT_BASE_URL,
   deckSystemPrompt,
+  designSystemPrompt,
   detailsSystemPrompt,
   chatCompletion,
   listModels,

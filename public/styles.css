@@ -150,6 +150,24 @@ body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 .theme-name { font-size: 11px; padding: 7px 8px; color: var(--text); text-align: center; }
+.theme-swatch.auto-swatch {
+  background: linear-gradient(135deg, #5EB1FF, #8B5CF6, #FF3D5A, #F5C542);
+  background-size: 300% 300%;
+  animation: autoSwatch 5s ease infinite;
+}
+@keyframes autoSwatch { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.theme-card.auto .theme-swatch .dot { display: none; }
+.theme-card.auto .theme-swatch::after {
+  content: "✨"; position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+}
+.design-badge {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid; border-radius: 12px; padding: 10px 14px;
+  font-size: 13px; color: var(--text); margin-bottom: 4px;
+  animation: badgeIn 0.5s ease;
+}
+@keyframes badgeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 
 .status { font-size: 13px; color: var(--muted); margin-top: 10px; min-height: 20px; }
 .status.error { color: var(--danger); }

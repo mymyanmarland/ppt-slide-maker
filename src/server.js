@@ -70,17 +70,49 @@ app.post("/api/generate", async (req, res) => {
     const cleanTopic = String(topic || "").trim();
     if (!cleanTopic) return res.status(400).json({ error: "empty-topic" });
     const count = [5, 8, 10, 12].includes(Number(slides)) ? Number(slides) : 8;
-    const themeKey = THEME_KEYS.includes(theme) ? theme : "navy-gold";
+    const wantAuto = theme === "auto";
+    const themeKey = !wantAuto && THEME_KEYS.includes(theme) ? theme : "midnight-glass";
     const useLang = lang === "en" ? "en" : "my";
     const c = creds();
     if (!c.apiKey) return res.status(400).json({ error: "no-key" });
     const useModel = model || c.model;
 
+    // AI design director: pick the theme + transition mood that fits the topic.
+    let useTheme = themeKey;
+    let mood = null;
+    let designChoice = null;
+    let designBrief = "";
+    if (wantAuto) {
+      const rawDesign = await gw.chatCompletion(
+        c.baseUrl,
+        c.apiKey,
+        useModel,
+        gw.designSystemPrompt(cleanTopic, detail, useLang, THEME_KEYS),
+        `Topic: ${cleanTopic}`,
+        { maxTokens: 400 }
+      );
+      const dj = gw.extractDeckJson(rawDesign) || {};
+      const picked = THEME_KEYS.includes(dj.theme) ? dj.theme : "midnight-glass";
+      mood = ["energetic", "elegant", "bold", "calm"].includes(dj.mood) ? dj.mood : "elegant";
+      useTheme = picked;
+      const pickedMeta = THEMES[picked] || THEMES["midnight-glass"];
+      const themeName = useLang === "my" ? pickedMeta.nameMy : pickedMeta.name;
+      const reason = String(dj.reason || "").trim().slice(0, 200);
+      designChoice = { theme: picked, themeName, mood, reason };
+      designBrief =
+        `VISUAL DIRECTION — adapt this whole deck to the topic (this is the key to not looking generic):\n` +
+        `- Mood: ${mood}. The "${themeName}" visual style was chosen because: ${reason || "it fits the topic best."}\n` +
+        `- Let the mood shape your composition: an energetic topic earns punchy hero statements and dynamic timelines; ` +
+        `an elegant topic earns refined quotes and calm two-column spreads; a data-heavy topic earns stats grids; ` +
+        `a cultural topic earns warm storytelling cards.\n` +
+        `- Vary your layout rhythm to the topic's narrative arc — never a flat, uniform sequence.`;
+    }
+
     const raw = await gw.chatCompletion(
       c.baseUrl,
       c.apiKey,
       useModel,
-      gw.deckSystemPrompt(cleanTopic, detail, count, useLang),
+      gw.deckSystemPrompt(cleanTopic, detail, count, useLang, designBrief),
       `Topic: ${cleanTopic}`,
       { maxTokens: 8000 }
     );
@@ -88,11 +120,12 @@ app.post("/api/generate", async (req, res) => {
     if (!parsed) return res.status(502).json({ error: "no-json", detail: raw.slice(0, 300) });
     const deck = gw.normalizeDeck(parsed, count);
     if (!deck.title) return res.status(502).json({ error: "bad-deck" });
+    if (designChoice) deck.design = designChoice;
 
     const id = store.saveDeck({
-      title: deck.title, topic: cleanTopic, theme: themeKey, lang: useLang, model: useModel, deck,
+      title: deck.title, topic: cleanTopic, theme: useTheme, lang: useLang, model: useModel, deck,
     });
-    res.json({ ok: true, id, deck, theme: themeKey, lang: useLang });
+    res.json({ ok: true, id, deck, theme: useTheme, lang: useLang, designChoice });
   } catch (e) {
     res.status(502).json({ error: String(e.message || e).slice(0, 300) });
   }
@@ -135,7 +168,7 @@ app.get("/api/decks/:id/download", async (req, res) => {
   try {
     const row = store.getDeck(Number(req.params.id));
     if (!row) return res.status(404).json({ error: "not-found" });
-    const buf = await buildPptx(row.deck, row.theme, row.lang);
+    const buf = await buildPptx(row.deck, row.theme, row.lang, row.deck && row.deck.design ? row.deck.design.mood : null);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
     res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(safeFilename(row.title))}`);
     res.send(Buffer.from(buf));

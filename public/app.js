@@ -9,6 +9,7 @@ const I18N = {
     aiDetail: "AI ဖြင့် ဖန်တီးရန်", aiDetailing: "AI ရေးနေတယ်…", detailFilled: "AI က အသေးစိတ်ရေးပေးပြီးပါပြီ ✨",
     slideCount: "ဆလိုက်အရေအတွက်", lang: "ဘာသာစကား", theme: "ဒီဇိုင်း", model: "AI မော်ဒယ်",
     generate: "✨ ဆလိုက်ထုတ်ရန်", preview: "အစမ်းကြည့်ရှုခြင်း",
+    themeAuto: "✨ AI ရွေးရန်", aiPicked: "AI ရွေးထားသော ဒီဇိုင်း",
     downloadPptx: "PPTX ဒေါင်းလုဒ်",
     previewEmpty: "အကြောင်းအရာရိုက်ပြီး \"ဆလိုက်ထုတ်ရန်\" ကိုနှိပ်ပါ — AI က အကြောင်းအရာရေးပေးပြီး တကယ့် .pptx ဖိုင်အဖြစ်ရမယ်။",
     gallery: "သိမ်းထားသော ဆလိုက်များ",
@@ -20,6 +21,7 @@ const I18N = {
     testConn: "စမ်းသပ်ရန်", close: "ပိတ်ရန်", save: "သိမ်းရန်",
     generating: "AI က ရေးနေတယ်… ခဏစောင့်ပါ ⏳",
     loadingTitle: "ဆလိုက်ထုတ်လုပ်နေတယ်",
+    loadS0: "AI က ဒီဇိုင်းရွေးနေတယ်…",
     loadS1: "AI က အကြောင်းအရာရေးနေတယ်…",
     loadS2: "ဒီဇိုင်းနဲ့ အရောင်ရွေးနေတယ်…",
     loadS3: "layout ဆွဲနေတယ်…",
@@ -41,6 +43,7 @@ const I18N = {
     aiDetail: "Generate with AI", aiDetailing: "AI is writing…", detailFilled: "AI wrote the details ✨",
     slideCount: "Slide count", lang: "Language", theme: "Theme", model: "AI model",
     generate: "✨ Generate slides", preview: "Preview",
+    themeAuto: "✨ AI auto-pick", aiPicked: "AI-picked design",
     downloadPptx: "Download PPTX",
     previewEmpty: "Type a topic and hit Generate — the AI writes the content and you get a real .pptx file.",
     gallery: "Saved decks",
@@ -52,6 +55,7 @@ const I18N = {
     testConn: "Test connection", close: "Close", save: "Save",
     generating: "AI is writing… please wait ⏳",
     loadingTitle: "Generating your deck",
+    loadS0: "AI is picking the design…",
     loadS1: "AI is writing the content…",
     loadS2: "Choosing the design…",
     loadS3: "Laying out the slides…",
@@ -69,7 +73,7 @@ const I18N = {
 
 let uiLang = localStorage.getItem("pptm-ui") || "my";
 let THEMES = [];
-let selectedTheme = "midnight-glass";
+let selectedTheme = "auto";
 let currentDeckId = null;
 
 const $ = (id) => document.getElementById(id);
@@ -91,6 +95,14 @@ function themeByKey(k) { return THEMES.find((x) => x.key === k) || THEMES[0]; }
 function renderThemes() {
   const g = $("themeGrid");
   g.innerHTML = "";
+  const auto = document.createElement("button");
+  auto.type = "button";
+  auto.className = "theme-card auto" + (selectedTheme === "auto" ? " selected" : "");
+  auto.innerHTML =
+    `<div class="theme-swatch auto-swatch"><div class="dot"></div></div>` +
+    `<div class="theme-name">${esc(t("themeAuto"))}</div>`;
+  auto.onclick = () => { selectedTheme = "auto"; renderThemes(); };
+  g.appendChild(auto);
   THEMES.forEach((th) => {
     const c = th.colors;
     const card = document.createElement("button");
@@ -258,12 +270,19 @@ function slideHtml(item, i, total, c, ui) {
   </div>`;
 }
 
-function renderPreview(deck, themeKey, lang) {
+function renderPreview(deck, themeKey, lang, designChoice) {
   window._lastDeck = { deck, theme: themeKey, lang };
   const th = themeByKey(themeKey);
   const c = th.colors;
   const total = deck.slides.length + 2;
-  let html =
+  const dc = designChoice || deck.design;
+  let html = dc
+    ? `<div class="design-badge" style="border-color:#${c.accent}55;background:#${c.accent}14">
+         <span style="font-size:16px">🎨</span>
+         <span><b>${esc(t("aiPicked"))}:</b> ${esc(dc.themeName || "")}${dc.reason ? " — " + esc(dc.reason) : ""}</span>
+       </div>`
+    : "";
+  html +=
     `<div class="slide-card title-slide" style="background:#${c.bgDeep};color:#${c.text}">
       ${deck.icon ? `<div style="font-size:64px;margin-bottom:8px">${esc(deck.icon)}</div>` : ""}
       <div class="kicker" style="color:#${c.accent}">${esc(t("kicker"))}</div>
@@ -286,7 +305,7 @@ async function loadStatus() {
   const r = await fetch("/api/status");
   const s = await r.json();
   THEMES = s.themes || [];
-  if (!THEMES.find((x) => x.key === selectedTheme) && THEMES.length) selectedTheme = THEMES[0].key;
+  if (selectedTheme !== "auto" && !THEMES.find((x) => x.key === selectedTheme) && THEMES.length) selectedTheme = "auto";
   renderThemes();
   $("keyBanner").classList.toggle("hidden", s.gatewayConfigured);
   $("ephemeralBanner").classList.toggle("hidden", !s.ephemeralKey);
@@ -313,8 +332,10 @@ async function loadStatus() {
 
 let loadTimer = null;
 
-function showLoading() {
-  const steps = [t("loadS1"), t("loadS2"), t("loadS3"), t("loadS4")];
+function showLoading(autoDesign) {
+  const steps = autoDesign
+    ? [t("loadS0"), t("loadS1"), t("loadS2"), t("loadS3"), t("loadS4")]
+    : [t("loadS1"), t("loadS2"), t("loadS3"), t("loadS4")];
   let i = 0;
   $("previewEmpty").classList.add("hidden");
   $("downloadBtn").classList.add("hidden");
@@ -399,7 +420,7 @@ async function generate() {
   const btn = $("generateBtn");
   btn.disabled = true;
   setStatus(t("generating"), "");
-  showLoading();
+  showLoading(selectedTheme === "auto");
   try {
     const r = await fetch("/api/generate", {
       method: "POST",
@@ -421,7 +442,7 @@ async function generate() {
       return;
     }
     currentDeckId = d.id;
-    renderPreview(d.deck, d.theme, d.lang);
+    renderPreview(d.deck, d.theme, d.lang, d.designChoice);
     setStatus(t("genDone"), "ok");
     renderGallery();
   } catch (e) {
