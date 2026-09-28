@@ -74,18 +74,48 @@ function watermark(slide, theme, icon) {
 }
 
 function bulletRuns(bullets, theme, fontSize = 18) {
-  return (bullets || []).map((b, i, arr) => ({
-    text: b,
-    options: {
-      fontSize,
-      color: theme.text,
-      fontFace: fontFor(b),
-      bullet: { code: "2022", color: theme.accent, indent: 20 },
-      paraSpaceAfter: 14,
-      lineSpacingMultiple: 1.25,
-      breakLine: i < arr.length - 1,
-    },
-  }));
+  return (bullets || [])
+    .map((b) => {
+      const icon = b && typeof b === "object" ? String(b.icon || "") : "";
+      const text = b && typeof b === "object" ? String(b.text || "") : String(b || "");
+      return { icon, text };
+    })
+    .filter((b) => b.text)
+    .map((b, i, arr) => ({
+      text: (b.icon ? b.icon + "  " : "") + b.text,
+      options: {
+        fontSize,
+        color: theme.text,
+        fontFace: fontFor(b.text),
+        bullet: { code: "2022", color: theme.accent, indent: 20 },
+        paraSpaceAfter: 14,
+        lineSpacingMultiple: 1.25,
+        breakLine: i < arr.length - 1,
+      },
+    }));
+}
+
+// Text of a bullet whether it is a string or {icon, text}.
+function btext(b) {
+  return b && typeof b === "object" ? String(b.text || "") : String(b || "");
+}
+function bicon(b) {
+  return b && typeof b === "object" ? String(b.icon || "") : "";
+}
+
+// Highlighted takeaway strip: one punchy key message at the bottom of a slide.
+function takeawayStrip(slide, pptx, theme, text, x, y, w) {
+  if (!text) return;
+  const h = 0.62;
+  slide.addShape(pptx.ShapeType.roundRect, {
+    x, y, w, h, rectRadius: 0.31,
+    fill: { color: theme.glass || "FFFFFF", transparency: 88 },
+    line: { color: theme.accent, width: 1.25 },
+  });
+  slide.addText("✦  " + text, {
+    x: x + 0.4, y: y + 0.02, w: w - 0.8, h: h - 0.04, valign: "middle",
+    fontSize: 13.5, italic: true, color: theme.title, fontFace: fontFor(text), lineSpacingMultiple: 1.1,
+  });
 }
 
 function addFooter(slide, pptx, theme, left, right) {
@@ -169,8 +199,11 @@ function addBulletsSlide(pptx, theme, deck, idx, item) {
   headingBlock(s, pptx, theme, item.heading);
   glassCard(s, pptx, theme, 1.3, 1.7, 11.1, 4.9, 0.16);
   watermark(s, theme, item.icon);
+  const hasTakeaway = !!(item.takeaway && item.takeaway.trim());
   const runs = bulletRuns(item.bullets, theme, 18);
-  if (runs.length) s.addText(runs, { x: 1.75, y: 1.95, w: item.icon ? 8.35 : 9.85, h: 4.4, valign: "top" });
+  if (runs.length)
+    s.addText(runs, { x: 1.75, y: 1.95, w: item.icon ? 8.35 : 9.85, h: hasTakeaway ? 3.5 : 4.4, valign: "top" });
+  if (hasTakeaway) takeawayStrip(s, pptx, theme, item.takeaway.trim(), 1.6, 5.68, 10.5);
   if (item.notes) s.addNotes(item.notes);
   addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
 }
@@ -219,8 +252,9 @@ function addCardsSlide(pptx, theme, deck, idx, item) {
   numberPill(s, pptx, theme, idx + 1);
   headingBlock(s, pptx, theme, item.heading);
   const pts = item.points.length >= 2 ? item.points : (item.bullets || []).slice(0, 3).map((b) => {
-    const m = String(b).split(/[:—–-]\s(.+)/);
-    return { icon: item.icon, title: m.length > 2 ? m[0].trim() : "", text: m.length > 2 ? m[1].trim() : b };
+    const t = btext(b);
+    const m = t.split(/[:—–-]\s(.+)/);
+    return { icon: bicon(b) || item.icon, title: m.length > 2 ? m[0].trim() : "", text: m.length > 2 ? m[1].trim() : t };
   });
   const n = Math.min(3, pts.length);
   const gap = 0.4, avail = 11.43, w = (avail - (n - 1) * gap) / n;
@@ -297,12 +331,16 @@ function addTwoColSlide(pptx, theme, deck, idx, item) {
   const mid = Math.ceil(bullets.length / 2);
   const left = bullets.slice(0, mid);
   const right = bullets.slice(mid);
-  glassCard(s, pptx, theme, 1.3, 1.8, 5.25, 4.6, 0.16);
-  glassCard(s, pptx, theme, 6.78, 1.8, 5.25, 4.6, 0.16);
+  const hasTakeaway = !!(item.takeaway && item.takeaway.trim());
+  const panelH = hasTakeaway ? 3.9 : 4.6;
+  glassCard(s, pptx, theme, 1.3, 1.8, 5.25, panelH, 0.16);
+  glassCard(s, pptx, theme, 6.78, 1.8, 5.25, panelH, 0.16);
   const lr = bulletRuns(left, theme, 15);
   const rr = bulletRuns(right, theme, 15);
-  if (lr.length) s.addText(lr, { x: 1.65, y: 2.05, w: 4.55, h: 4.1, valign: "top" });
-  if (rr.length) s.addText(rr, { x: 7.13, y: 2.05, w: 4.55, h: 4.1, valign: "top" });
+  const textH = hasTakeaway ? 3.35 : 4.1;
+  if (lr.length) s.addText(lr, { x: 1.65, y: 2.05, w: 4.55, h: textH, valign: "top" });
+  if (rr.length) s.addText(rr, { x: 7.13, y: 2.05, w: 4.55, h: textH, valign: "top" });
+  if (hasTakeaway) takeawayStrip(s, pptx, theme, item.takeaway.trim(), 1.3, 5.85, 11.1);
   if (item.icon) {
     s.addText(item.icon, {
       x: 11.9, y: 6.2, w: 0.9, h: 0.9, align: "center", fontSize: 36, fontFace: "Segoe UI Emoji",
@@ -322,7 +360,7 @@ function addQuoteSlide(pptx, theme, deck, idx, item) {
     fill: { color: theme.band, transparency: 55 }, line: { color: theme.band, transparency: 100 },
   });
   numberPill(s, pptx, theme, idx + 1);
-  const quote = item.quote || item.bullets.join(" ") || item.heading;
+  const quote = item.quote || (item.bullets || []).map(btext).join(" ") || item.heading;
   glassCard(s, pptx, theme, 1.6, 2.15, 10.13, 3.35, 0.2);
   s.addText("\u201C", {
     x: 1.5, y: 1.15, w: 10.3, h: 1.2, align: "center",
