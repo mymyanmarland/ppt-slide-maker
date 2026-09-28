@@ -5,10 +5,24 @@ const AdmZip = require("adm-zip");
 const { THEMES, THEME_KEYS } = require("./themes");
 
 const MY_RE = /[\u1000-\u109F]/;
-const fontFor = (s) => (MY_RE.test(String(s || "")) ? "Noto Sans Myanmar" : "Calibri");
+// Pyidaungsu is the standard Myanmar Unicode font on the user's machines;
+// PowerPoint falls back gracefully if it is not installed.
+const fontFor = (s) => (MY_RE.test(String(s || "")) ? "Pyidaungsu" : "Calibri");
 const isLight = (theme) => theme.bgDeep === "F4F5F7";
 
 // ---- shared bits -----------------------------------------------------------
+
+// Soft ambient light washes for depth — subtle on purpose. Add FIRST so content sits above.
+function ambient(slide, pptx, theme) {
+  slide.addShape(pptx.ShapeType.ellipse, {
+    x: 8.6, y: -3.0, w: 7.6, h: 7.6,
+    fill: { color: theme.band, transparency: 78 }, line: { color: theme.band, transparency: 100 },
+  });
+  slide.addShape(pptx.ShapeType.ellipse, {
+    x: -3.0, y: 4.6, w: 6.0, h: 6.0,
+    fill: { color: theme.band, transparency: 88 }, line: { color: theme.band, transparency: 100 },
+  });
+}
 
 function topBar(slide, pptx, theme) {
   slide.addShape(pptx.ShapeType.rect, {
@@ -61,7 +75,10 @@ function bulletRuns(bullets, theme, fontSize = 18) {
   }));
 }
 
-function addFooter(slide, theme, left, right) {
+function addFooter(slide, pptx, theme, left, right) {
+  slide.addShape(pptx.ShapeType.rect, {
+    x: 0.5, y: 6.94, w: 12.33, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
+  });
   slide.addText(String(left || ""), {
     x: 0.5, y: 7.02, w: 8, h: 0.3,
     fontSize: 9, color: theme.footer, fontFace: fontFor(left),
@@ -101,12 +118,16 @@ function addTitleSlide(pptx, theme, deck, lang) {
     x: 0.9, y: 1.7, w: 6, h: 0.4,
     fontSize: 13, bold: true, color: theme.accent, charSpacing: 6, fontFace: fontFor(kicker),
   });
+  // double rule: thick accent block + thin hairline
   s.addShape(pptx.ShapeType.rect, {
-    x: 0.9, y: 2.2, w: 1.4, h: 0.07, fill: { color: theme.accent }, line: { color: theme.accent },
+    x: 0.9, y: 2.18, w: 1.4, h: 0.07, fill: { color: theme.accent }, line: { color: theme.accent },
+  });
+  s.addShape(pptx.ShapeType.rect, {
+    x: 2.42, y: 2.2, w: 3.2, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
   });
   s.addText(deck.title || "", {
-    x: 0.9, y: 2.45, w: 8.6, h: 2.3,
-    fontSize: 44, bold: true, color: theme.title, fontFace: fontFor(deck.title), lineSpacingMultiple: 1.05,
+    x: 0.9, y: 2.42, w: 8.6, h: 2.35,
+    fontSize: 46, bold: true, color: theme.title, fontFace: fontFor(deck.title), lineSpacingMultiple: 1.04,
   });
   if (deck.subtitle) {
     s.addText(deck.subtitle, {
@@ -117,6 +138,9 @@ function addTitleSlide(pptx, theme, deck, lang) {
   const dateStr = new Date().toLocaleDateString(lang === "en" ? "en-US" : "my-MM", {
     year: "numeric", month: "long", day: "numeric",
   });
+  s.addShape(pptx.ShapeType.rect, {
+    x: 0.9, y: 6.42, w: 5.6, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
+  });
   s.addText(dateStr, {
     x: 0.9, y: 6.55, w: 6, h: 0.4,
     fontSize: 11, color: theme.footer, fontFace: "Calibri",
@@ -126,6 +150,7 @@ function addTitleSlide(pptx, theme, deck, lang) {
 function addBulletsSlide(pptx, theme, deck, idx, item) {
   const s = pptx.addSlide();
   s.background = { color: theme.bg };
+  ambient(s, pptx, theme);
   topBar(s, pptx, theme);
   numberPill(s, pptx, theme, idx + 1);
   headingBlock(s, pptx, theme, item.heading);
@@ -133,12 +158,13 @@ function addBulletsSlide(pptx, theme, deck, idx, item) {
   const runs = bulletRuns(item.bullets, theme, 18);
   if (runs.length) s.addText(runs, { x: 1.5, y: 1.85, w: item.icon ? 8.7 : 10.2, h: 4.6, valign: "top" });
   if (item.notes) s.addNotes(item.notes);
-  addFooter(s, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
+  addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
 }
 
 function addStatSlide(pptx, theme, deck, idx, item) {
   const s = pptx.addSlide();
   s.background = { color: theme.bg };
+  ambient(s, pptx, theme);
   topBar(s, pptx, theme);
   numberPill(s, pptx, theme, idx + 1);
   headingBlock(s, pptx, theme, item.heading);
@@ -167,12 +193,13 @@ function addStatSlide(pptx, theme, deck, idx, item) {
     if (runs.length) s.addText(runs, { x: 1.5, y: 1.85, w: 9.6, h: 4.6, valign: "top" });
   }
   if (item.notes) s.addNotes(item.notes);
-  addFooter(s, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
+  addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
 }
 
 function addTwoColSlide(pptx, theme, deck, idx, item) {
   const s = pptx.addSlide();
   s.background = { color: theme.bg };
+  ambient(s, pptx, theme);
   topBar(s, pptx, theme);
   numberPill(s, pptx, theme, idx + 1);
   headingBlock(s, pptx, theme, item.heading);
@@ -194,12 +221,13 @@ function addTwoColSlide(pptx, theme, deck, idx, item) {
     });
   }
   if (item.notes) s.addNotes(item.notes);
-  addFooter(s, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
+  addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
 }
 
 function addQuoteSlide(pptx, theme, deck, idx, item) {
   const s = pptx.addSlide();
   s.background = { color: theme.bgDeep };
+  ambient(s, pptx, theme);
   topBar(s, pptx, theme);
   s.addShape(pptx.ShapeType.ellipse, {
     x: -1.8, y: -1.8, w: 5.4, h: 5.4,
@@ -225,7 +253,7 @@ function addQuoteSlide(pptx, theme, deck, idx, item) {
     });
   }
   if (item.notes) s.addNotes(item.notes);
-  addFooter(s, theme, item.heading, `${idx + 1} / ${deck.slides.length}`);
+  addFooter(s, pptx, theme, item.heading, `${idx + 1} / ${deck.slides.length}`);
 }
 
 function addClosingSlide(pptx, theme, deck, lang) {
