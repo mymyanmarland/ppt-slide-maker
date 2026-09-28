@@ -3,12 +3,17 @@
 const PptxGenJS = require("pptxgenjs");
 const AdmZip = require("adm-zip");
 const { THEMES, THEME_KEYS } = require("./themes");
+const { resolveTheme } = require("./design");
 
 const MY_RE = /[\u1000-\u109F]/;
 // Pyidaungsu is the standard Myanmar Unicode font on the user's machines;
 // PowerPoint falls back gracefully if it is not installed.
 const fontFor = (s) => (MY_RE.test(String(s || "")) ? "Pyidaungsu" : "Calibri");
-const isLight = (theme) => theme.bgDeep === "F4F5F7";
+const isLight = (theme) => {
+  const hex = String((theme && theme.bg) || "000000").replace("#", "");
+  const r = parseInt(hex.slice(0, 2), 16) || 0, g = parseInt(hex.slice(2, 4), 16) || 0, b = parseInt(hex.slice(4, 6), 16) || 0;
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150;
+};
 
 // ---- typography system ------------------------------------------------------
 // Headings: Bold (700), tight letter-spacing (-0.02em), line-height 1.1
@@ -43,7 +48,7 @@ function ambient(slide, pptx, theme) {
 // Frosted glass card: translucent fill + hairline border + top sheen highlight.
 function glassCard(slide, pptx, theme, x, y, w, h, r) {
   slide.addShape(pptx.ShapeType.roundRect, {
-    x, y, w, h, rectRadius: r == null ? 0.14 : r,
+    x, y, w, h, rectRadius: theme && theme.radius != null ? theme.radius : (r == null ? 0.14 : r),
     fill: { color: theme.glass || "FFFFFF", transparency: 90 },
     line: { color: theme.glassBorder || theme.band, width: 1 },
   });
@@ -177,66 +182,163 @@ function addFooter(slide, pptx, theme, left, right) {
   });
 }
 
+
+// ---- per-design decor motifs (drawn first = behind content) -----------------
+function applyDecor(s, pptx, theme) {
+  const decor = (theme && theme.decor) || "none";
+  const A = theme.accent, B = theme.band, BG = theme.bg;
+  const noLine = (c) => ({ color: c, transparency: 100 });
+  if (decor === "dots") {
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+      s.addShape(pptx.ShapeType.ellipse, {
+        x: 12.3 - c * 0.3, y: 0.35 + r * 0.3, w: 0.1, h: 0.1,
+        fill: { color: A, transparency: 55 }, line: noLine(A),
+      });
+    }
+  } else if (decor === "streaks") {
+    s.addShape(pptx.ShapeType.rect, {
+      x: -1.4, y: 1.2, w: 0.55, h: 9.5, rotate: 24,
+      fill: { color: A, transparency: 88 }, line: noLine(A),
+    });
+    s.addShape(pptx.ShapeType.rect, {
+      x: -0.5, y: 1.2, w: 0.2, h: 9.5, rotate: 24,
+      fill: { color: A, transparency: 78 }, line: noLine(A),
+    });
+  } else if (decor === "rings") {
+    s.addShape(pptx.ShapeType.ellipse, {
+      x: 11.2, y: 5.5, w: 3.6, h: 3.6,
+      fill: { color: BG, transparency: 100 }, line: { color: A, width: 1.5, transparency: 45 },
+    });
+    s.addShape(pptx.ShapeType.ellipse, {
+      x: -1.7, y: -1.7, w: 2.8, h: 2.8,
+      fill: { color: BG, transparency: 100 }, line: { color: B, width: 1.5, transparency: 35 },
+    });
+  }
+}
+
+function newSlide(pptx, theme) {
+  const s = pptx.addSlide();
+  applyDecor(s, pptx, theme);
+  return s;
+}
+
 // ---- slide layouts ---------------------------------------------------------
 
 function addTitleSlide(pptx, theme, deck, lang) {
-  const s = pptx.addSlide();
-  s.background = { color: theme.bgDeep };
-  s.addShape(pptx.ShapeType.ellipse, {
-    x: 9.4, y: -2.6, w: 7.2, h: 7.2,
-    fill: { color: theme.band, transparency: 35 }, line: { color: theme.band, transparency: 100 },
-  });
-  s.addShape(pptx.ShapeType.ellipse, {
-    x: -2.4, y: 5.4, w: 5.2, h: 5.2,
-    fill: { color: theme.band, transparency: 55 }, line: { color: theme.band, transparency: 100 },
-  });
-  // thin accent ring
-  s.addShape(pptx.ShapeType.ellipse, {
-    x: 10.6, y: 4.4, w: 2.6, h: 2.6,
-    fill: { color: theme.bgDeep, transparency: 100 }, line: { color: theme.accent, width: 2 },
-  });
-  if (deck.icon) {
-    s.addText(deck.icon, {
-      x: 10.55, y: 4.35, w: 2.7, h: 2.7, align: "center",
-      fontSize: 96, fontFace: "Segoe UI Emoji",
-    });
-  }
+  const style = (theme && theme.titleStyle) || "monument";
+  if (style === "band") return addTitleBand(pptx, theme, deck, lang);
+  if (style === "halo") return addTitleHalo(pptx, theme, deck, lang);
+  return addTitleMonument(pptx, theme, deck, lang);
+}
+
+function titleKicker(pptx, s, theme, lang, x, y, w, align) {
   const kicker = lang === "en" ? "AI SLIDE DECK" : "AI ဆလိုက်ဒ်";
   s.addText(kicker, {
-    x: 0.9, y: 1.7, w: 6, h: 0.4,
+    x, y, w, h: 0.4, align: align || "left",
     fontSize: 13, bold: true, color: theme.accent, charSpacing: 6, fontFace: fontFor(kicker),
   });
-  // double rule: thick accent block + thin hairline
-  s.addShape(pptx.ShapeType.rect, {
-    x: 0.9, y: 2.18, w: 1.4, h: 0.07, fill: { color: theme.accent }, line: { color: theme.accent },
-  });
-  s.addShape(pptx.ShapeType.rect, {
-    x: 2.42, y: 2.2, w: 3.2, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
-  });
-  s.addText(richText(deck.title || "", theme, { ...T.h1(theme.title), fontFace: fontFor(deck.title) }), {
-    x: 0.9, y: 2.42, w: 8.6, h: 2.35,
-    ...T.h1(theme.title), fontFace: fontFor(deck.title),
-  });
-  if (deck.subtitle) {
-    s.addText(richText(deck.subtitle, theme, { ...T.h3(theme.title), fontFace: fontFor(deck.subtitle) }), {
-      x: 0.9, y: 4.9, w: 8.6, h: 1.2,
-      ...T.h3(theme.title), fontFace: fontFor(deck.subtitle),
-    });
-  }
+}
+
+function titleDate(s, theme, lang, x, y, w, align) {
   const dateStr = new Date().toLocaleDateString(lang === "en" ? "en-US" : "my-MM", {
     year: "numeric", month: "long", day: "numeric",
   });
-  s.addShape(pptx.ShapeType.rect, {
-    x: 0.9, y: 6.42, w: 5.6, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
-  });
   s.addText(dateStr, {
-    x: 0.9, y: 6.55, w: 6, h: 0.4,
+    x, y, w, h: 0.4, align: align || "left",
     ...T.caption(), fontFace: "Calibri",
   });
 }
 
+// Variant 1: gigantic typography statement, minimal chrome.
+function addTitleMonument(pptx, theme, deck, lang) {
+  const s = newSlide(pptx, theme);
+  s.background = { color: theme.bgDeep };
+  titleKicker(pptx, s, theme, lang, 0.9, 1.5, 8, "left");
+  s.addShape(pptx.ShapeType.rect, {
+    x: 0.9, y: 2.0, w: 1.6, h: 0.09, fill: { color: theme.accent }, line: { color: theme.accent },
+  });
+  const tOpts = { fontSize: 58, bold: true, color: theme.title, fontFace: fontFor(deck.title), lineSpacingMultiple: 1.05 };
+  s.addText(richText(deck.title || "", theme, tOpts), {
+    x: 0.9, y: 2.3, w: 11.5, h: 2.6, ...tOpts,
+  });
+  if (deck.subtitle) {
+    const sOpts = { fontSize: 22, color: theme.text, fontFace: fontFor(deck.subtitle), lineSpacingMultiple: 1.4 };
+    s.addText(richText(deck.subtitle, theme, sOpts), {
+      x: 0.9, y: 5.05, w: 9.5, h: 1.3, ...sOpts,
+    });
+  }
+  titleDate(s, theme, lang, 0.9, 6.6, 6, "left");
+  if (deck.icon) {
+    s.addText(deck.icon, {
+      x: 11.3, y: 5.9, w: 1.2, h: 1.2, align: "center",
+      fontSize: 54, fontFace: "Segoe UI Emoji",
+    });
+  }
+}
+
+// Variant 2: bold vertical accent band on the left edge.
+function addTitleBand(pptx, theme, deck, lang) {
+  const s = newSlide(pptx, theme);
+  s.background = { color: theme.bg };
+  s.addShape(pptx.ShapeType.rect, {
+    x: 0, y: 0, w: 0.85, h: 7.5, fill: { color: theme.accent }, line: { color: theme.accent },
+  });
+  s.addShape(pptx.ShapeType.rect, {
+    x: 0.85, y: 0, w: 0.12, h: 7.5, fill: { color: theme.accentSoft }, line: { color: theme.accentSoft },
+  });
+  titleKicker(pptx, s, theme, lang, 1.6, 1.6, 8, "left");
+  const tOpts = { fontSize: 46, bold: true, color: theme.title, fontFace: fontFor(deck.title), lineSpacingMultiple: 1.12 };
+  s.addText(richText(deck.title || "", theme, tOpts), {
+    x: 1.6, y: 2.2, w: 10.2, h: 2.5, ...tOpts,
+  });
+  if (deck.subtitle) {
+    const sOpts = { fontSize: 20, italic: true, color: theme.muted, fontFace: fontFor(deck.subtitle), lineSpacingMultiple: 1.5 };
+    s.addText(richText(deck.subtitle, theme, sOpts), {
+      x: 1.6, y: 4.9, w: 9.5, h: 1.2, ...sOpts,
+    });
+  }
+  if (deck.icon) {
+    s.addText(deck.icon, {
+      x: 1.6, y: 6.1, w: 1.0, h: 1.0, align: "center",
+      fontSize: 44, fontFace: "Segoe UI Emoji",
+    });
+  }
+  titleDate(s, theme, lang, 2.9, 6.35, 6, "left");
+}
+
+// Variant 3: centered composition with a large accent ring.
+function addTitleHalo(pptx, theme, deck, lang) {
+  const s = newSlide(pptx, theme);
+  s.background = { color: theme.bgDeep };
+  s.addShape(pptx.ShapeType.ellipse, {
+    x: 4.16, y: 0.9, w: 5.0, h: 5.0,
+    fill: { color: theme.bgDeep, transparency: 100 }, line: { color: theme.accent, width: 2.5, transparency: 25 },
+  });
+  s.addShape(pptx.ShapeType.ellipse, {
+    x: 4.66, y: 1.4, w: 4.0, h: 4.0,
+    fill: { color: theme.band, transparency: 70 }, line: { color: theme.band, transparency: 100 },
+  });
+  titleKicker(pptx, s, theme, lang, 1.5, 1.1, 10.33, "center");
+  const tOpts = { fontSize: 50, bold: true, color: theme.title, fontFace: fontFor(deck.title), lineSpacingMultiple: 1.1, align: "center" };
+  s.addText(richText(deck.title || "", theme, tOpts), {
+    x: 1.5, y: 2.5, w: 10.33, h: 2.4, ...tOpts,
+  });
+  if (deck.subtitle) {
+    const sOpts = { fontSize: 20, color: theme.text, fontFace: fontFor(deck.subtitle), lineSpacingMultiple: 1.5, align: "center" };
+    s.addText(richText(deck.subtitle, theme, sOpts), {
+      x: 2.0, y: 5.0, w: 9.33, h: 1.2, ...sOpts,
+    });
+  }
+  if (deck.icon) {
+    s.addText(deck.icon, {
+      x: 6.16, y: 6.15, w: 1.0, h: 1.0, align: "center",
+      fontSize: 40, fontFace: "Segoe UI Emoji",
+    });
+  }
+}
+
 function addBulletsSlide(pptx, theme, deck, idx, item) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
@@ -257,7 +359,7 @@ function addBulletsSlide(pptx, theme, deck, idx, item) {
 }
 
 function addStatSlide(pptx, theme, deck, idx, item) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
@@ -293,7 +395,7 @@ function addStatSlide(pptx, theme, deck, idx, item) {
 
 // ---- NEW: feature cards (3 glass cards in a row, like a modern SaaS pitch) ----
 function addCardsSlide(pptx, theme, deck, idx, item) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
@@ -350,7 +452,7 @@ function addCardsSlide(pptx, theme, deck, idx, item) {
 
 // ---- NEW: stats grid (2-4 big numbers on glass cards) ----
 function addStatsSlide(pptx, theme, deck, idx, item) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
@@ -385,7 +487,7 @@ function addStatsSlide(pptx, theme, deck, idx, item) {
 }
 
 function addTwoColSlide(pptx, theme, deck, idx, item) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
@@ -415,7 +517,7 @@ function addTwoColSlide(pptx, theme, deck, idx, item) {
 }
 
 function addQuoteSlide(pptx, theme, deck, idx, item) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bgDeep };
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
@@ -449,7 +551,7 @@ function addQuoteSlide(pptx, theme, deck, idx, item) {
 
 // ---- NEW: timeline — horizontal process with numbered nodes + connector ----
 function addTimelineSlide(pptx, theme, deck, idx, item) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
@@ -497,7 +599,7 @@ function addTimelineSlide(pptx, theme, deck, idx, item) {
 
 // ---- NEW: split — giant icon art panel left, bullets right ----
 function addSplitSlide(pptx, theme, deck, idx, item) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bg };
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
@@ -530,7 +632,7 @@ function addSplitSlide(pptx, theme, deck, idx, item) {
 
 // ---- NEW: hero — one massive statement/number as the whole message ----
 function addHeroSlide(pptx, theme, deck, idx, item) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bgDeep };
   ambient(s, pptx, theme);
   topBar(s, pptx, theme);
@@ -561,7 +663,7 @@ function addHeroSlide(pptx, theme, deck, idx, item) {
 }
 
 function addClosingSlide(pptx, theme, deck, lang) {
-  const s = pptx.addSlide();
+  const s = newSlide(pptx, theme);
   s.background = { color: theme.bgDeep };
   s.addShape(pptx.ShapeType.ellipse, {
     x: 3.06, y: 1.2, w: 7.2, h: 7.2,
@@ -640,8 +742,8 @@ function resolveLayout(item) {
   return "bullets";
 }
 
-async function buildPptx(deck, themeKey, lang = "my", mood) {
-  const theme = THEMES[themeKey] ? THEMES[themeKey] : THEMES["navy-gold"];
+async function buildPptx(deck, themeInput, lang = "my", moodOverride) {
+  const theme = resolveTheme(themeInput, THEMES);
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: "WIDE169", width: 13.33, height: 7.5 });
   pptx.layout = "WIDE169";
@@ -665,7 +767,7 @@ async function buildPptx(deck, themeKey, lang = "my", mood) {
   addClosingSlide(pptx, theme, deck, lang);
 
   const raw = await pptx.write({ outputType: "nodebuffer" });
-  return applyTransitions(raw, mood);
+  return applyTransitions(raw, moodOverride || theme.mood);
 }
 
 module.exports = { buildPptx, THEME_KEYS };

@@ -98,7 +98,7 @@ function saveDeck({ title, topic, theme, lang, model, deck }) {
 function listDecks(limit = 60) {
   return db
     .prepare(
-      "SELECT id, title, topic, theme, lang, model, created_at FROM decks ORDER BY id DESC LIMIT ?"
+      "SELECT id, title, topic, theme, lang, model, created_at, json_extract(deck_json, '$.design.accent') AS accent FROM decks ORDER BY id DESC LIMIT ?"
     )
     .all(limit);
 }

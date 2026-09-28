@@ -279,22 +279,32 @@ function detailsSystemPrompt(topic, lang) {
   );
 }
 
-// Prompt for the "AI design director": analyzes the topic and picks the visual design.
-function designSystemPrompt(topic, detail, lang, themeKeys) {
+// Prompt for the "AI design director": invents a COMPLETELY NEW visual identity
+// for every deck — never picks from a list, never repeats a generic template.
+function designSystemPrompt(topic, detail, lang) {
   const langLine = lang === "en"
-    ? 'Write "reason" in English, one short sentence.'
-    : '"reason" ကို မြန်မာလို တစ်ကြောင်းတည်း တိုတိုရေးပါ။';
+    ? 'Write "name" and "reason" in English.'
+    : '"name" နဲ့ "reason" ကို မြန်မာလို ရေးပါ (name က ၂-၄ လုံးပါတဲ့ ဆန်းသစ်တဲ့ နာမည်).';
   return (
-    "You are an art director for slide presentations. Analyze the topic below and choose the visual design that fits it best.\n" +
+    "You are an award-winning presentation art director. Invent a COMPLETELY NEW, original visual identity for a slide deck about the topic below. " +
+    "This must look like nothing the audience has seen before — a fresh design every single time.\n" +
     `Topic: ${topic}\n` +
     (detail ? `Extra context: ${String(detail).slice(0, 400)}\n` : "") +
-    `Available theme keys: ${themeKeys.join(", ")}.\n` +
-    "Theme guide: midnight-glass = sleek modern tech; violet = creative/futuristic tech; navy-gold = premium/luxury; " +
-    "corporate = business/finance; minimal = clean formal/education; impact = bold, loud, youth/entertainment; " +
-    "myanmar = Myanmar culture, tradition, food, festivals.\n" +
-    "Also choose a transition mood for the slide animations: energetic (fast, punchy), elegant (smooth, calm), bold (dramatic), or calm (gentle) — match it to the topic's energy.\n" +
+    "Rules for originality:\n" +
+    "- Do NOT fall back to generic corporate blue, plain dark-navy+gold, or boring minimal white. Be daring but tasteful.\n" +
+    "- Choose an unexpected but harmonious palette: deep plum + lime, ink black + sakura pink, forest green + amber, " +
+    "ocean teal + coral, charcoal + electric violet, midnight + champagne, etc. Dark backgrounds usually look more premium.\n" +
+    "- bg = slide background, bgDeep = darker shade for title/closing slides, band = muted surface color for shapes/footers, " +
+    "accent = the one signature color (used for highlights, icons, rules), accentSoft = lighter tint of accent, " +
+    "title/text = must contrast strongly with bg, muted = secondary text, footer = faint text.\n" +
+    "- titleStyle: 'monument' = gigantic typography statement; 'band' = bold vertical accent band layout; 'halo' = centered with a large accent ring.\n" +
+    "- corners: 'sharp' = edgy rectangles, 'soft' = gentle rounding, 'round' = very rounded friendly cards.\n" +
+    "- decor: 'dots' = dot-grid motif, 'streaks' = diagonal light streaks, 'rings' = large thin circles, 'none' = pure minimal.\n" +
+    "- mood: energetic (fast, punchy), elegant (smooth, calm), bold (dramatic), calm (gentle) — match the topic's energy.\n" +
     langLine + "\n" +
-    'Reply with ONLY this JSON and nothing else: {"theme":"<one key from the list>","mood":"energetic|elegant|bold|calm","reason":"<why this theme fits the topic>"}.'
+    "Reply with ONLY this JSON and nothing else:\n" +
+    '{"name":"<original 2-4 word design name>","palette":{"bg":"RRGGBB","bgDeep":"RRGGBB","band":"RRGGBB","accent":"RRGGBB","accentSoft":"RRGGBB","title":"RRGGBB","text":"RRGGBB","muted":"RRGGBB","footer":"RRGGBB"},' +
+    '"titleStyle":"monument|band|halo","corners":"sharp|soft|round","decor":"dots|streaks|rings|none","mood":"energetic|elegant|bold|calm","reason":"<one sentence: why this design fits the topic>"}'
   );
 }
 

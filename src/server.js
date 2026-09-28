@@ -3,8 +3,9 @@ const express = require("express");
 const path = require("path");
 const store = require("./store");
 const gw = require("./gateway");
-const { buildPptx, THEME_KEYS } = require("./pptx");
-const { THEMES } = require("./themes");
+const { buildPptx } = require("./pptx");
+const design = require("./design");
+const { THEMES, THEME_KEYS } = require("./themes");
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -66,47 +67,34 @@ app.get("/api/models", async (req, res) => {
 
 app.post("/api/generate", async (req, res) => {
   try {
-    const { topic, detail, slides, theme, lang, model } = req.body || {};
+    const { topic, detail, slides, lang, model } = req.body || {};
     const cleanTopic = String(topic || "").trim();
     if (!cleanTopic) return res.status(400).json({ error: "empty-topic" });
     const count = [5, 8, 10, 12].includes(Number(slides)) ? Number(slides) : 8;
-    const wantAuto = theme === "auto";
-    const themeKey = !wantAuto && THEME_KEYS.includes(theme) ? theme : "midnight-glass";
     const useLang = lang === "en" ? "en" : "my";
     const c = creds();
     if (!c.apiKey) return res.status(400).json({ error: "no-key" });
     const useModel = model || c.model;
 
-    // AI design director: pick the theme + transition mood that fits the topic.
-    let useTheme = themeKey;
-    let mood = null;
-    let designChoice = null;
-    let designBrief = "";
-    if (wantAuto) {
-      const rawDesign = await gw.chatCompletion(
-        c.baseUrl,
-        c.apiKey,
-        useModel,
-        gw.designSystemPrompt(cleanTopic, detail, useLang, THEME_KEYS),
-        `Topic: ${cleanTopic}`,
-        { maxTokens: 400 }
-      );
-      const dj = gw.extractDeckJson(rawDesign) || {};
-      const picked = THEME_KEYS.includes(dj.theme) ? dj.theme : "midnight-glass";
-      mood = ["energetic", "elegant", "bold", "calm"].includes(dj.mood) ? dj.mood : "elegant";
-      useTheme = picked;
-      const pickedMeta = THEMES[picked] || THEMES["midnight-glass"];
-      const themeName = useLang === "my" ? pickedMeta.nameMy : pickedMeta.name;
-      const reason = String(dj.reason || "").trim().slice(0, 200);
-      designChoice = { theme: picked, themeName, mood, reason };
-      designBrief =
-        `VISUAL DIRECTION — adapt this whole deck to the topic (this is the key to not looking generic):\n` +
-        `- Mood: ${mood}. The "${themeName}" visual style was chosen because: ${reason || "it fits the topic best."}\n` +
-        `- Let the mood shape your composition: an energetic topic earns punchy hero statements and dynamic timelines; ` +
-        `an elegant topic earns refined quotes and calm two-column spreads; a data-heavy topic earns stats grids; ` +
-        `a cultural topic earns warm storytelling cards.\n` +
-        `- Vary your layout rhythm to the topic's narrative arc — never a flat, uniform sequence.`;
-    }
+    // AI design director: invent a COMPLETELY NEW visual identity for this topic — never a template.
+    const rawDesign = await gw.chatCompletion(
+      c.baseUrl,
+      c.apiKey,
+      useModel,
+      gw.designSystemPrompt(cleanTopic, detail, useLang),
+      `Topic: ${cleanTopic}`,
+      { maxTokens: 900 }
+    );
+    const theme = design.normalizeDesign(gw.extractDeckJson(rawDesign), useLang);
+    const designBrief =
+      `VISUAL DIRECTION — this deck has a brand-new, one-of-a-kind visual identity. Make every choice serve it:\n` +
+      `- Design name: "${theme.name}". Palette: background #${theme.bg} (deep #${theme.bgDeep}), signature accent #${theme.accent} (soft #${theme.accentSoft}), muted surface #${theme.band}.\n` +
+      `- Title treatment: ${theme.titleStyle} | card corners: ${theme.corners} | background motif: ${theme.decor} | energy: ${theme.mood}.\n` +
+      `- Why this design fits the topic: ${theme.reason || "it matches the topic's energy."}\n` +
+      `- Let the mood shape composition: an energetic topic earns punchy hero statements and dynamic timelines; ` +
+      `an elegant topic earns refined quotes and calm two-column spreads; a data-heavy topic earns stats grids; ` +
+      `a cultural topic earns warm storytelling cards.\n` +
+      `- Vary your layout rhythm to the topic's narrative arc — never a flat, uniform sequence.`;
 
     const raw = await gw.chatCompletion(
       c.baseUrl,
@@ -120,12 +108,21 @@ app.post("/api/generate", async (req, res) => {
     if (!parsed) return res.status(502).json({ error: "no-json", detail: raw.slice(0, 300) });
     const deck = gw.normalizeDeck(parsed, count);
     if (!deck.title) return res.status(502).json({ error: "bad-deck" });
-    if (designChoice) deck.design = designChoice;
+    deck.design = {
+      name: theme.name,
+      reason: theme.reason,
+      mood: theme.mood,
+      titleStyle: theme.titleStyle,
+      corners: theme.corners,
+      decor: theme.decor,
+      accent: theme.accent,
+      theme,
+    };
 
     const id = store.saveDeck({
-      title: deck.title, topic: cleanTopic, theme: useTheme, lang: useLang, model: useModel, deck,
+      title: deck.title, topic: cleanTopic, theme: theme.name, lang: useLang, model: useModel, deck,
     });
-    res.json({ ok: true, id, deck, theme: useTheme, lang: useLang, designChoice });
+    res.json({ ok: true, id, deck, theme, lang: useLang, designChoice: deck.design });
   } catch (e) {
     res.status(502).json({ error: String(e.message || e).slice(0, 300) });
   }
@@ -168,7 +165,9 @@ app.get("/api/decks/:id/download", async (req, res) => {
   try {
     const row = store.getDeck(Number(req.params.id));
     if (!row) return res.status(404).json({ error: "not-found" });
-    const buf = await buildPptx(row.deck, row.theme, row.lang, row.deck && row.deck.design ? row.deck.design.mood : null);
+    const dsg = row.deck && row.deck.design;
+    const thm = (dsg && dsg.theme) || row.theme;
+    const buf = await buildPptx(row.deck, thm, row.lang, dsg ? dsg.mood : null);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
     res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(safeFilename(row.title))}`);
     res.send(Buffer.from(buf));

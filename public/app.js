@@ -9,7 +9,7 @@ const I18N = {
     aiDetail: "AI ဖြင့် ဖန်တီးရန်", aiDetailing: "AI ရေးနေတယ်…", detailFilled: "AI က အသေးစိတ်ရေးပေးပြီးပါပြီ ✨",
     slideCount: "ဆလိုက်အရေအတွက်", lang: "ဘာသာစကား", theme: "ဒီဇိုင်း", model: "AI မော်ဒယ်",
     generate: "✨ ဆလိုက်ထုတ်ရန်", preview: "အစမ်းကြည့်ရှုခြင်း",
-    themeAuto: "✨ AI ရွေးရန်", aiPicked: "AI ရွေးထားသော ဒီဇိုင်း",
+    aiPicked: "AI ဖန်တီးထားသော ဒီဇိုင်း",
     downloadPptx: "PPTX ဒေါင်းလုဒ်",
     previewEmpty: "အကြောင်းအရာရိုက်ပြီး \"ဆလိုက်ထုတ်ရန်\" ကိုနှိပ်ပါ — AI က အကြောင်းအရာရေးပေးပြီး တကယ့် .pptx ဖိုင်အဖြစ်ရမယ်။",
     gallery: "သိမ်းထားသော ဆလိုက်များ",
@@ -21,7 +21,7 @@ const I18N = {
     testConn: "စမ်းသပ်ရန်", close: "ပိတ်ရန်", save: "သိမ်းရန်",
     generating: "AI က ရေးနေတယ်… ခဏစောင့်ပါ ⏳",
     loadingTitle: "ဆလိုက်ထုတ်လုပ်နေတယ်",
-    loadS0: "AI က ဒီဇိုင်းရွေးနေတယ်…",
+    loadS0: "AI က ဒီဇိုင်းအသစ်တစ်ခုလုံး ဖန်တီးနေတယ်…",
     loadS1: "AI က အကြောင်းအရာရေးနေတယ်…",
     loadS2: "ဒီဇိုင်းနဲ့ အရောင်ရွေးနေတယ်…",
     loadS3: "layout ဆွဲနေတယ်…",
@@ -43,7 +43,7 @@ const I18N = {
     aiDetail: "Generate with AI", aiDetailing: "AI is writing…", detailFilled: "AI wrote the details ✨",
     slideCount: "Slide count", lang: "Language", theme: "Theme", model: "AI model",
     generate: "✨ Generate slides", preview: "Preview",
-    themeAuto: "✨ AI auto-pick", aiPicked: "AI-picked design",
+    aiPicked: "AI-crafted design",
     downloadPptx: "Download PPTX",
     previewEmpty: "Type a topic and hit Generate — the AI writes the content and you get a real .pptx file.",
     gallery: "Saved decks",
@@ -55,7 +55,7 @@ const I18N = {
     testConn: "Test connection", close: "Close", save: "Save",
     generating: "AI is writing… please wait ⏳",
     loadingTitle: "Generating your deck",
-    loadS0: "AI is picking the design…",
+    loadS0: "AI is crafting a brand-new design…",
     loadS1: "AI is writing the content…",
     loadS2: "Choosing the design…",
     loadS3: "Laying out the slides…",
@@ -72,8 +72,6 @@ const I18N = {
 };
 
 let uiLang = localStorage.getItem("pptm-ui") || "my";
-let THEMES = [];
-let selectedTheme = "auto";
 let currentDeckId = null;
 
 const $ = (id) => document.getElementById(id);
@@ -85,35 +83,8 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
   $("langMy").classList.toggle("active", uiLang === "my");
   $("langEn").classList.toggle("active", uiLang === "en");
-  renderThemes();
   renderGallery();
   if (window._lastDeck) renderPreview(window._lastDeck.deck, window._lastDeck.theme, window._lastDeck.lang);
-}
-
-function themeByKey(k) { return THEMES.find((x) => x.key === k) || THEMES[0]; }
-
-function renderThemes() {
-  const g = $("themeGrid");
-  g.innerHTML = "";
-  const auto = document.createElement("button");
-  auto.type = "button";
-  auto.className = "theme-card auto" + (selectedTheme === "auto" ? " selected" : "");
-  auto.innerHTML =
-    `<div class="theme-swatch auto-swatch"><div class="dot"></div></div>` +
-    `<div class="theme-name">${esc(t("themeAuto"))}</div>`;
-  auto.onclick = () => { selectedTheme = "auto"; renderThemes(); };
-  g.appendChild(auto);
-  THEMES.forEach((th) => {
-    const c = th.colors;
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "theme-card" + (th.key === selectedTheme ? " selected" : "");
-    card.innerHTML =
-      `<div class="theme-swatch" style="background:#${c.bg}"><div class="dot" style="background:#${c.accent}"></div></div>` +
-      `<div class="theme-name">${uiLang === "my" ? th.nameMy : th.name}</div>`;
-    card.onclick = () => { selectedTheme = th.key; renderThemes(); };
-    g.appendChild(card);
-  });
 }
 
 function esc(s) {
@@ -270,16 +241,18 @@ function slideHtml(item, i, total, c, ui) {
   </div>`;
 }
 
-function renderPreview(deck, themeKey, lang, designChoice) {
-  window._lastDeck = { deck, theme: themeKey, lang };
-  const th = themeByKey(themeKey);
-  const c = th.colors;
+function renderPreview(deck, theme, lang, designChoice) {
+  window._lastDeck = { deck, theme, lang };
+  const c = theme && theme.bg ? theme : { bg: "0B1220", bgDeep: "060B16", band: "16233D", accent: "5EB1FF", accentSoft: "A8D4FF", title: "FFFFFF", text: "E5E7EB", muted: "8CA3C4", footer: "54687F" };
   const total = deck.slides.length + 2;
   const dc = designChoice || deck.design;
+  const palDots = ["bg", "accent", "accentSoft", "band", "muted"]
+    .map((k) => `<span class="pal-dot" style="background:#${c[k]}"></span>`).join("");
   let html = dc
     ? `<div class="design-badge" style="border-color:#${c.accent}55;background:#${c.accent}14">
          <span style="font-size:16px">🎨</span>
-         <span><b>${esc(t("aiPicked"))}:</b> ${esc(dc.themeName || "")}${dc.reason ? " — " + esc(dc.reason) : ""}</span>
+         <span><b>${esc(t("aiPicked"))}:</b> ${esc(dc.name || "")}${dc.reason ? " — " + esc(dc.reason) : ""}</span>
+         <span class="pal-dots">${palDots}</span>
        </div>`
     : "";
   html +=
@@ -304,9 +277,6 @@ function renderPreview(deck, themeKey, lang, designChoice) {
 async function loadStatus() {
   const r = await fetch("/api/status");
   const s = await r.json();
-  THEMES = s.themes || [];
-  if (selectedTheme !== "auto" && !THEMES.find((x) => x.key === selectedTheme) && THEMES.length) selectedTheme = "auto";
-  renderThemes();
   $("keyBanner").classList.toggle("hidden", s.gatewayConfigured);
   $("ephemeralBanner").classList.toggle("hidden", !s.ephemeralKey);
   const ms = $("modelSel");
@@ -420,7 +390,7 @@ async function generate() {
   const btn = $("generateBtn");
   btn.disabled = true;
   setStatus(t("generating"), "");
-  showLoading(selectedTheme === "auto");
+  showLoading(true);
   try {
     const r = await fetch("/api/generate", {
       method: "POST",
@@ -429,7 +399,6 @@ async function generate() {
         topic,
         detail: $("detail").value.trim(),
         slides: Number($("slideCount").value),
-        theme: selectedTheme,
         lang: $("deckLang").value,
         model: $("modelSel").value,
       }),
@@ -469,14 +438,14 @@ async function renderGallery() {
     if (!items.length) { g.innerHTML = `<div class="empty" style="padding:20px"><p>${esc(t("emptyGallery"))}</p></div>`; return; }
     g.innerHTML = "";
     items.forEach((d) => {
-      const th = themeByKey(d.theme);
+      const accent = d.accent || "5EB1FF";
       const card = document.createElement("div");
       card.className = "deck-card";
       const dt = new Date(d.created_at).toLocaleString(uiLang === "my" ? "my-MM" : "en-US");
       card.innerHTML =
-        `<div style="height:6px;border-radius:3px;background:#${th.colors.accent}"></div>` +
+        `<div style="height:6px;border-radius:3px;background:#${accent}"></div>` +
         `<div class="t">${esc(d.title)}</div>` +
-        `<div class="m">${esc(d.topic)} · ${uiLang === "my" ? th.nameMy : th.name} · ${esc(dt)}</div>` +
+        `<div class="m">${esc(d.topic)} · ${esc(d.theme)} · ${esc(dt)}</div>` +
         `<div class="actions">
            <a class="btn small primary" style="text-decoration:none" href="/api/decks/${d.id}/download">⬇ ${esc(t("download"))}</a>
            <button class="btn small danger" data-del="${d.id}">${esc(t("del"))}</button>
