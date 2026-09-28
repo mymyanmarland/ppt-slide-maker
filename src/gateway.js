@@ -26,20 +26,35 @@ function deckSystemPrompt(topic, detail, count, lang) {
     "Rules for the outline:",
     "- Slide 1 of the outline is the TITLE SLIDE: a short punchy main title (max 10 words),",
     "  a one-line subtitle, and one emoji icon that represents the topic.",
-    "- Content slides: short heading (max 8 words) and 3 to 4 crisp bullets,",
-    "  EACH BULLET MAX 12 WORDS. Short beats long — no walls of text.",
+    "- Content slides: short heading (max 8 words) and 4 to 5 informative bullets.",
+    "- EACH BULLET IS A FULL SENTENCE (12-18 words) with a concrete example, number, or",
+    "  comparison where possible. Never write one-word or fragment bullets — they bore the reader.",
     "- The last content slide is a strong closing / call-to-action slide.",
     "- Also write 1-2 sentences of speaker notes per slide.",
     d ? `- Extra context from the user: ${d}` : "",
     "",
+    "MEANINGFUL TITLES (critical — never skip this rule):",
+    "- Every heading, card title, and stat label must be a COMPLETE, MEANINGFUL phrase",
+    "  that makes sense on its own to someone who never saw the source text.",
+    "- NEVER copy a raw English fragment from the source/topic text as a title.",
+    '- FORBIDDEN titles (meaningless fragments): "1 Image", "N Containers", "0 Code Change", "1 Command".',
+    '- GOOD titles instead: "တစ်ကြိမ်တည်ဆောက်၊ အကြိမ်ကြိမ်သုံး", "Environment ပြောင်းလဲစရာမလို",',
+    '  "Command တစ်ခုတည်းနဲ့ Run". Card titles: max 6 words, must read as a real heading.',
+    "- Stat labels must also be full meaningful phrases (max 10 words), never fragments.",
+    "",
     "VISUAL VARIETY (important — avoid text-only monotony):",
     '- Give every slide an "icon": ONE single emoji that visually represents its heading (e.g. 🚀 📊 💡 🌱).',
+    '- Give EVERY bullet its own emoji icon too, illustrating that specific bullet —',
+    '  "bullets": [{"icon":"⚡","text":"Full informative sentence …"}, …].',
+    '- Give every content slide a "takeaway": ONE punchy sentence (max 20 words) — the single',
+    "  key message of the slide, specific and memorable. It renders as a highlighted strip.",
     '- Give every slide a "layout", varying across the deck:',
     '  • "bullets" — heading + bullet list (default, use for ~a third of the slides)',
     '  • "cards" — 3 feature cards in a row, like a modern SaaS pitch deck.',
-    '    Fill "points": [{"icon":"🔗","title":"Short title","text":"One crisp line, max 15 words"}, …] (exactly 3).',
+    '    Fill "points": [{"icon":"🔗","title":"Complete meaningful heading","text":"1-2 sentences, up to 30 words, with a concrete detail or example"}, …] (exactly 3).',
+    "    Titles must follow the MEANINGFUL TITLES rule — never a fragment.",
     '  • "stats" — a 2x2 grid of big striking numbers on glass cards.',
-    '    Fill "stats": [{"value":"30%","label":"what this number means"}, …] (2 to 4 items).',
+    '    Fill "stats": [{"value":"30%","label":"full meaningful phrase saying what this number means"}, …] (2 to 4 items).',
     '    Use for key figures, survey results, market numbers.',
     '  • "stat" — legacy single big number; prefer "stats" instead.',
     '  • "two-col" — heading + bullets split into two balanced columns.',
@@ -49,7 +64,7 @@ function deckSystemPrompt(topic, detail, count, lang) {
     "",
     "Output STRICT JSON only — no explanations, no markdown fences. The JSON shape:",
     '{ "title": "...", "subtitle": "...", "icon": "🚀", "slides": [',
-    '  { "heading": "...", "bullets": ["...", "..."], "notes": "...",',
+    '  { "heading": "...", "bullets": [{"icon":"⚡","text":"..."}], "takeaway": "...", "notes": "...",',
     '    "icon": "📊", "layout": "bullets",',
     '    "stats": [{"value": "", "label": ""}],',
     '    "points": [{"icon": "", "title": "", "text": ""}],',
@@ -142,12 +157,27 @@ function cleanIcon(v) {
   return m ? m[0] : "";
 }
 
+function cleanBullets(v) {
+  return (Array.isArray(v) ? v : [])
+    .map((b) => {
+      if (b && typeof b === "object")
+        return { icon: cleanIcon(b.icon), text: String(b.text || "").trim().slice(0, 220) };
+      return { icon: "", text: String(b || "").trim().slice(0, 220) };
+    })
+    .filter((b) => b.text)
+    .slice(0, 6);
+}
+
+function bulletTexts(bullets) {
+  return (bullets || []).map((b) => (b && typeof b === "object" ? b.text : String(b || "")));
+}
+
 function cleanPoints(v) {
   return (Array.isArray(v) ? v : [])
     .map((p) => ({
       icon: cleanIcon(p?.icon),
       title: String(p?.title || "").trim().slice(0, 80),
-      text: String(p?.text || "").trim().slice(0, 160),
+      text: String(p?.text || "").trim().slice(0, 200),
     }))
     .filter((p) => p.title || p.text)
     .slice(0, 3);
@@ -181,10 +211,8 @@ function normalizeDeck(raw, count) {
       }
       return {
         heading: String(s?.heading || "").trim().slice(0, 120),
-        bullets: (Array.isArray(s?.bullets) ? s.bullets : [])
-          .map((b) => String(b || "").trim().slice(0, 200))
-          .filter(Boolean)
-          .slice(0, 6),
+        bullets: cleanBullets(s?.bullets),
+        takeaway: String(s?.takeaway || "").trim().slice(0, 160),
         notes: String(s?.notes || "").trim().slice(0, 600),
         icon: cleanIcon(s?.icon),
         layout,
@@ -202,7 +230,7 @@ function normalizeDeck(raw, count) {
   // enforce exact slide count: trim extras, pad with empty slots if short
   const fixed = norm.slice(0, count);
   while (fixed.length < count)
-    fixed.push({ heading: "", bullets: [], notes: "", icon: "", layout: "bullets", stats: [], points: [], stat: { value: "", label: "" }, quote: "", quoteBy: "" });
+    fixed.push({ heading: "", bullets: [], takeaway: "", notes: "", icon: "", layout: "bullets", stats: [], points: [], stat: { value: "", label: "" }, quote: "", quoteBy: "" });
   return {
     title: String(raw.title || "").trim().slice(0, 140),
     subtitle: String(raw.subtitle || "").trim().slice(0, 200),
