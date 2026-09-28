@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PPT Slide Maker — ဆလိုက်ဒ်ဖန်တီးစက်</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">▦</div>
+    <div>
+      <div class="brand-name" data-i18n="brand">PPT Slide Maker</div>
+      <div class="brand-sub" data-i18n="brandSub">AI ဆလိုက်ဒ်ဖန်တီးစက်</div>
+    </div>
+  </div>
+  <div class="top-actions">
+    <div class="lang-toggle">
+      <button id="langMy" class="active">မြန်မာ</button>
+      <button id="langEn">EN</button>
+    </div>
+    <button id="settingsBtn" class="btn ghost" data-i18n="settings">⚙ ဆက်တင်</button>
+  </div>
+</header>
+
+<div id="keyBanner" class="banner hidden">
+  <span data-i18n="noKey">API key မရှိသေးပါ — ဆက်တင်မှာ သင့် gateway key ကိုထည့်ပါ။</span>
+  <button id="keyBannerBtn" class="btn small" data-i18n="openSettings">ဆက်တင်ဖွင့်</button>
+</div>
+<div id="ephemeralBanner" class="banner warn hidden">
+  <span data-i18n="ephemeral">APP_SECRET မသတ်မှတ်ထားလို့ key က restart ပြန်စရင် ပျောက်မယ်။</span>
+</div>
+
+<main class="layout">
+  <section class="panel form-panel">
+    <h2 data-i18n="newDeck">ဆလိုက်အသစ်ဖန်တီးရန်</h2>
+
+    <label class="field">
+      <span data-i18n="topic">အကြောင်းအရာ *</span>
+      <input id="topic" type="text" data-i18n-ph="topicPh" placeholder="ဥပမာ — မြန်မာ့ရိုးရာအစားအစာ">
+    </label>
+
+    <label class="field">
+      <span data-i18n="detail">အသေးစိတ် (ရွေးချယ်ရန်)</span>
+      <textarea id="detail" rows="3" data-i18n-ph="detailPh" placeholder="ပရိသတ်၊ ရည်ရွယ်ချက်၊ ထည့်ချင်တဲ့အချက်များ…"></textarea>
+    </label>
+
+    <div class="row2">
+      <label class="field">
+        <span data-i18n="slideCount">ဆလိုက်အရေအတွက်</span>
+        <select id="slideCount">
+          <option value="5">5</option>
+          <option value="8" selected>8</option>
+          <option value="10">10</option>
+          <option value="12">12</option>
+        </select>
+      </label>
+      <label class="field">
+        <span data-i18n="lang">ဘာသာစကား</span>
+        <select id="deckLang">
+          <option value="my" selected>မြန်မာ</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="field">
+      <span data-i18n="theme">ဒီဇိုင်း</span>
+      <div id="themeGrid" class="theme-grid"></div>
+    </div>
+
+    <label class="field">
+      <span data-i18n="model">AI မော်ဒယ်</span>
+      <select id="modelSel"></select>
+    </label>
+
+    <button id="generateBtn" class="btn primary big">
+      <span data-i18n="generate">✨ ဆလိုက်ထုတ်ရန်</span>
+    </button>
+    <div id="genStatus" class="status"></div>
+  </section>
+
+  <section class="panel preview-panel">
+    <div class="preview-head">
+      <h2 data-i18n="preview">အစမ်းကြည့်ရှုခြင်း</h2>
+      <button id="downloadBtn" class="btn primary hidden">⬇ <span data-i18n="downloadPptx">PPTX ဒေါင်းလုဒ်</span></button>
+    </div>
+    <div id="previewEmpty" class="empty">
+      <div class="empty-icon">🖥️</div>
+      <p data-i18n="previewEmpty">အကြောင်းအရာရိုက်ပြီး "ဆလိုက်ထုတ်ရန်" ကိုနှိပ်ပါ — AI က အကြောင်းအရာရေးပေးပြီး တကယ့် .pptx ဖိုင်အဖြစ်ရမယ်။</p>
+    </div>
+    <div id="previewSlides" class="slides"></div>
+  </section>
+</main>
+
+<section class="panel gallery-panel">
+  <h2 data-i18n="gallery">သိမ်းထားသော ဆလိုက်များ</h2>
+  <div id="gallery" class="gallery"></div>
+</section>
+
+<div id="settingsModal" class="modal hidden">
+  <div class="modal-card">
+    <h2 data-i18n="settingsTitle">Gateway ဆက်တင်</h2>
+    <label class="field">
+      <span data-i18n="baseUrl">Gateway URL</span>
+      <input id="setBaseUrl" type="text">
+    </label>
+    <label class="field">
+      <span data-i18n="apiKey">API Key</span>
+      <input id="setApiKey" type="password" data-i18n-ph="apiKeyPh" placeholder="ထည့်ပြီးသားရှိရင် အလွတ်ထားနိုင်">
+    </label>
+    <label class="field">
+      <span data-i18n="defaultModel">ပုံသေမော်ဒယ်</span>
+      <input id="setModel" type="text">
+    </label>
+    <div class="modal-actions">
+      <button id="testConnBtn" class="btn ghost" data-i18n="testConn">စမ်းသပ်ရန်</button>
+      <span id="testResult" class="status"></span>
+    </div>
+    <div class="modal-actions end">
+      <button id="settingsClose" class="btn ghost" data-i18n="close">ပိတ်ရန်</button>
+      <button id="settingsSave" class="btn primary" data-i18n="save">သိမ်းရန်</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
