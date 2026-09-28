@@ -1,0 +1,12 @@
+{
+  "name": "ppt-slide-maker",
+  "version": "1.0.0",
+  "description": "AI PowerPoint slide generator powered by the user's Claude N Codex gateway",
+  "main": "src/server.js",
+  "scripts": { "start": "node src/server.js" },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pptxgenjs": "^4.0.1"
+  },
+  "engines": { "node": ">=22" }
+}
