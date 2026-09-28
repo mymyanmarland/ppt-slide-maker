@@ -14,7 +14,7 @@ function creds() {
   return {
     baseUrl: store.getSetting("gateway_base_url") || gw.DEFAULT_BASE_URL,
     apiKey: store.getSecret("gateway_api_key"),
-    model: store.getSetting("gateway_model") || "claude-sonnet-5",
+    model: store.getSetting("gateway_model") || "claude-opus-5",
   };
 }
 
