@@ -263,9 +263,25 @@ function normalizeDeck(raw, count) {
   };
 }
 
+// Prompt that expands a bare topic into a rich "details" brief for deck generation.
+function detailsSystemPrompt(topic, lang) {
+  const langLine = lang === "en"
+    ? "Write the brief in English."
+    : "အသေးစိတ်ကို မြန်မာလိုရေး — နည်းပညာအခေါ်အဝေါ်၊ product နာမည်၊ acronym တွေကို အင်္ဂလိပ်လိုထားပြီး မြန်မာအနက်ကို ကွင်းစကွင်းပိတ်ထဲထည့် (ဥပမာ — Docker (ကွန်တိန်နာ နည်းပညာ))။";
+  return (
+    "You help a user expand a presentation topic into a rich detail brief. " +
+    "The brief will guide an AI that writes the actual slide deck, so make it concrete and inspiring.\n" +
+    "Cover in 4-6 short sentences: what the topic is really about, 2-3 key aspects worth including, " +
+    "a suggested audience angle (who this is for), and the tone/purpose (e.g. convince, teach, inspire).\n" +
+    langLine + "\n" +
+    "Rules: plain sentences only, no JSON, no markdown, no bullet points, no quotes around the text, under 700 characters."
+  );
+}
+
 module.exports = {
   DEFAULT_BASE_URL,
   deckSystemPrompt,
+  detailsSystemPrompt,
   chatCompletion,
   listModels,
   extractDeckJson,

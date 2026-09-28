@@ -6,6 +6,7 @@ const I18N = {
     settings: "⚙ ဆက်တင်", newDeck: "ဆလိုက်အသစ်ဖန်တီးရန်",
     topic: "အကြောင်းအရာ *", topicPh: "ဥပမာ — မြန်မာ့ရိုးရာအစားအစာ",
     detail: "အသေးစိတ် (ရွေးချယ်ရန်)", detailPh: "ပရိသတ်၊ ရည်ရွယ်ချက်၊ ထည့်ချင်တဲ့အချက်များ…",
+    aiDetail: "AI ဖြင့် ဖန်တီးရန်", aiDetailing: "AI ရေးနေတယ်…", detailFilled: "AI က အသေးစိတ်ရေးပေးပြီးပါပြီ ✨",
     slideCount: "ဆလိုက်အရေအတွက်", lang: "ဘာသာစကား", theme: "ဒီဇိုင်း", model: "AI မော်ဒယ်",
     generate: "✨ ဆလိုက်ထုတ်ရန်", preview: "အစမ်းကြည့်ရှုခြင်း",
     downloadPptx: "PPTX ဒေါင်းလုဒ်",
@@ -19,9 +20,10 @@ const I18N = {
     testConn: "စမ်းသပ်ရန်", close: "ပိတ်ရန်", save: "သိမ်းရန်",
     generating: "AI က ရေးနေတယ်… ခဏစောင့်ပါ ⏳",
     loadingTitle: "ဆလိုက်ထုတ်လုပ်နေတယ်",
-    loadStep1: "AI က အကြောင်းအရာရေးနေတယ်…",
-    loadStep2: "ဒီဇိုင်းနဲ့ layout ဆွဲနေတယ်…",
-    loadStep3: "PPTX ဖိုင်တည်ဆောက်နေတယ်…",
+    loadS1: "AI က အကြောင်းအရာရေးနေတယ်…",
+    loadS2: "ဒီဇိုင်းနဲ့ အရောင်ရွေးနေတယ်…",
+    loadS3: "layout ဆွဲနေတယ်…",
+    loadS4: "PPTX ဖိုင်တည်ဆောက်နေတယ်…",
     genDone: "ပြီးပါပြီ ✅ — အစမ်းကြည့်ပြီး PPTX ဒေါင်းလုဒ်လုပ်နိုင်ပါပြီ။",
     errTopic: "အကြောင်းအရာ အရင်ရိုက်ပါ။",
     errKey: "API key မရှိသေးပါ။ ဆက်တင်မှာ ထည့်ပါ။",
@@ -36,6 +38,7 @@ const I18N = {
     settings: "⚙ Settings", newDeck: "Create new slides",
     topic: "Topic *", topicPh: "e.g. Traditional Myanmar food",
     detail: "Details (optional)", detailPh: "Audience, purpose, points to include…",
+    aiDetail: "Generate with AI", aiDetailing: "AI is writing…", detailFilled: "AI wrote the details ✨",
     slideCount: "Slide count", lang: "Language", theme: "Theme", model: "AI model",
     generate: "✨ Generate slides", preview: "Preview",
     downloadPptx: "Download PPTX",
@@ -49,9 +52,10 @@ const I18N = {
     testConn: "Test connection", close: "Close", save: "Save",
     generating: "AI is writing… please wait ⏳",
     loadingTitle: "Generating your deck",
-    loadStep1: "AI is writing the content…",
-    loadStep2: "Designing layouts and visuals…",
-    loadStep3: "Building the PPTX file…",
+    loadS1: "AI is writing the content…",
+    loadS2: "Choosing the design…",
+    loadS3: "Laying out the slides…",
+    loadS4: "Building the PPTX file…",
     genDone: "Done ✅ — preview it and download the PPTX.",
     errTopic: "Please enter a topic first.",
     errKey: "No API key. Add it in Settings.",
@@ -310,27 +314,83 @@ async function loadStatus() {
 let loadTimer = null;
 
 function showLoading() {
-  const steps = [t("loadStep1"), t("loadStep2"), t("loadStep3")];
+  const steps = [t("loadS1"), t("loadS2"), t("loadS3"), t("loadS4")];
   let i = 0;
   $("previewEmpty").classList.add("hidden");
   $("downloadBtn").classList.add("hidden");
   $("previewSlides").innerHTML =
     `<div class="loading-wrap">
-       <div class="spinner"></div>
+       <div class="load-deck" aria-hidden="true">
+         <div class="load-slide">
+           <div class="ls-kicker"></div><div class="ls-title"></div>
+           <div class="ls-line" style="width:88%"></div>
+           <div class="ls-line" style="width:64%"></div>
+           <div class="ls-line" style="width:76%"></div>
+         </div>
+         <div class="load-slide">
+           <div class="ls-cards"><div></div><div></div><div></div></div>
+           <div class="ls-line" style="width:52%"></div>
+         </div>
+         <div class="load-slide">
+           <div class="ls-hero-ring"></div>
+           <div class="ls-hero"></div>
+           <div class="ls-line" style="width:44%"></div>
+         </div>
+       </div>
        <div class="loading-title">${esc(t("loadingTitle"))}<span class="loading-dots"></span></div>
-       <div class="loading-step" id="loadingStep">${esc(steps[0])}</div>
-       <div class="skeleton"></div>
-       <div class="skeleton"></div>
+       <div class="load-bar"><div class="load-bar-fill" id="loadBarFill"></div></div>
+       <ol class="load-steps" id="loadSteps">
+         ${steps.map((s) => `<li><span class="ls-dot"></span><span>${esc(s)}</span></li>`).join("")}
+       </ol>
      </div>`;
+  const paint = () => {
+    document.querySelectorAll("#loadSteps li").forEach((li, k) => {
+      li.classList.toggle("done", k < i);
+      li.classList.toggle("active", k === i);
+    });
+    const f = $("loadBarFill");
+    if (f) f.style.width = (((i + 1) / steps.length) * 100).toFixed(0) + "%";
+  };
+  paint();
   loadTimer = setInterval(() => {
-    i = (i + 1) % steps.length;
-    const el = $("loadingStep");
-    if (el) el.textContent = steps[i];
-  }, 2600);
+    if (i < steps.length - 1) { i++; paint(); }
+  }, 2800);
 }
 
 function hideLoading() {
   if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
+}
+
+async function generateDetails() {
+  const topic = $("topic").value.trim();
+  if (!topic) { setStatus(t("errTopic"), "error"); $("topic").focus(); return; }
+  const btn = $("aiDetailBtn");
+  const label = btn.querySelector("[data-i18n]");
+  btn.disabled = true;
+  label.textContent = t("aiDetailing");
+  try {
+    const r = await fetch("/api/details/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic, lang: $("deckLang").value, model: $("modelSel").value }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      setStatus(d.error === "no-key" ? t("errKey") : t("errGen") + ": " + (d.error || ""), "error");
+      return;
+    }
+    const ta = $("detail");
+    ta.value = d.text;
+    ta.classList.remove("flash");
+    void ta.offsetWidth; /* restart the flash animation */
+    ta.classList.add("flash");
+    setStatus(t("detailFilled"), "ok");
+  } catch (e) {
+    setStatus(t("errGen") + ": " + String(e.message || e).slice(0, 200), "error");
+  } finally {
+    btn.disabled = false;
+    label.textContent = t("aiDetail");
+  }
 }
 
 async function generate() {
@@ -448,6 +508,7 @@ async function testConn() {
 }
 
 $("generateBtn").onclick = generate;
+$("aiDetailBtn").onclick = generateDetails;
 $("downloadBtn").onclick = () => {
   if (currentDeckId) window.location.href = "/api/decks/" + currentDeckId + "/download";
 };

@@ -98,6 +98,30 @@ app.post("/api/generate", async (req, res) => {
   }
 });
 
+app.post("/api/details/generate", async (req, res) => {
+  try {
+    const { topic, lang, model } = req.body || {};
+    const cleanTopic = String(topic || "").trim();
+    if (!cleanTopic) return res.status(400).json({ error: "empty-topic" });
+    const useLang = lang === "en" ? "en" : "my";
+    const c = creds();
+    if (!c.apiKey) return res.status(400).json({ error: "no-key" });
+    const text = await gw.chatCompletion(
+      c.baseUrl,
+      c.apiKey,
+      model || c.model,
+      gw.detailsSystemPrompt(cleanTopic, useLang),
+      `Topic: ${cleanTopic}`,
+      { maxTokens: 600 }
+    );
+    const brief = String(text || "").trim().replace(/^["'\s]+|["'\s]+$/g, "");
+    if (!brief) return res.status(502).json({ error: "empty-brief" });
+    res.json({ ok: true, text: brief });
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e).slice(0, 300) });
+  }
+});
+
 app.get("/api/decks", (req, res) => {
   res.json({ items: store.listDecks() });
 });
