@@ -103,6 +103,10 @@ function renderThemes() {
 function esc(s) {
   return String(s || "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
+// Keyword highlight: ==phrase== -> accent-colored bold span (HTML-escaped first).
+function hl(t, accent) {
+  return esc(t).replace(/==(.+?)==/g, `<span style="color:${accent};font-weight:700">$1</span>`);
+}
 
 function bText(b) {
   return b && typeof b === "object" ? String(b.text || "") : String(b || "");
@@ -110,22 +114,26 @@ function bText(b) {
 function bIcon(b) {
   return b && typeof b === "object" ? String(b.icon || "") : "";
 }
-function bulletLis(bullets) {
+function bulletLis(bullets, c) {
+  const ac = c ? `#${c.accent}` : "inherit";
   return (bullets || [])
     .map((b) => {
       const t = bText(b), ic = bIcon(b);
-      return t ? `<li>${ic ? `<span style="margin-right:6px">${esc(ic)}</span>` : ""}${esc(t)}</li>` : "";
+      return t ? `<li>${ic ? `<span style="margin-right:6px">${esc(ic)}</span>` : ""}${hl(t, ac)}</li>` : "";
     })
     .join("");
 }
 function takeawayHtml(tw, c) {
   if (!tw || !tw.trim()) return "";
-  return `<div style="margin-top:14px;padding:10px 16px;border:1.5px solid #${c.accent};border-radius:999px;background:rgba(255,255,255,0.06);color:#${c.title};font-style:italic;font-size:clamp(11px,1.4vw,16px);line-height:1.4">✦&nbsp;&nbsp;${esc(tw.trim())}</div>`;
+  return `<div style="margin-top:14px;padding:10px 16px;border:1.5px solid #${c.accent};border-radius:999px;background:rgba(255,255,255,0.06);color:#${c.title};font-style:italic;font-size:clamp(11px,1.4vw,16px);line-height:1.4">✦&nbsp;&nbsp;${hl(tw.trim(), `#${c.accent}`)}</div>`;
 }
 
 function layoutOf(item) {
   if (item.layout === "stats" && (item.stats || []).length >= 2) return "stats";
   if ((item.layout === "stat" || item.layout === "stats") && ((item.stats || []).length === 1 || (item.stat && item.stat.value))) return "stat";
+  if (item.layout === "timeline" && (item.points || []).length >= 2) return "timeline";
+  if (item.layout === "split" && (item.bullets || []).length >= 2 && item.icon) return "split";
+  if (item.layout === "hero" && (item.hero || item.heading)) return "hero";
   if (item.layout === "cards" && ((item.points || []).length >= 2 || (item.bullets || []).length >= 2)) return "cards";
   if (item.layout === "quote" && (item.quote || (item.bullets || []).length)) return "quote";
   if (item.layout === "two-col" && (item.bullets || []).length > 2) return "two-col";
@@ -137,7 +145,7 @@ function slideHtml(item, i, total, c, ui) {
   const head =
     `<div class="snum">${i + 1} / ${total}</div>` +
     `<div style="width:44px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:12px"></div>` +
-    `<h3 style="color:#${c.title}">${esc(item.heading)}</h3>`;
+    `<h3 style="color:#${c.title}">${hl(item.heading, `#${c.accent}`)}</h3>`;
   const iconBg = item.icon
     ? `<div style="position:absolute;right:4%;top:18%;font-size:110px;opacity:0.16;pointer-events:none">${esc(item.icon)}</div>`
     : "";
@@ -161,16 +169,17 @@ function slideHtml(item, i, total, c, ui) {
         });
     const cards = pts.map((p) => `
       <div class="pv-glass" style="flex:1;padding:16px;min-width:0;text-align:center">
-        ${p.icon ? `<div style="font-size:30px;margin-bottom:8px">${esc(p.icon)}</div>` : ""}
-        ${p.title ? `<div style="font-weight:700;color:#${c.title};font-size:clamp(13px,1.8vw,24px);letter-spacing:-0.02em;line-height:1.1;margin-bottom:6px">${esc(p.title)}</div>` : ""}
-        <div style="color:#${c.text};font-size:clamp(11px,1.3vw,16px);line-height:1.6">${esc(p.text)}</div>
+        <div style="width:22px;height:4px;background:#${c.accent};border-radius:2px;margin:0 auto 12px"></div>
+        ${p.icon ? `<div style="width:52px;height:52px;border-radius:50%;background:#${c.accent}29;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 10px">${esc(p.icon)}</div>` : ""}
+        ${p.title ? `<div style="font-weight:700;color:#${c.title};font-size:clamp(13px,1.8vw,24px);letter-spacing:-0.02em;line-height:1.1;margin-bottom:6px">${hl(p.title, `#${c.accent}`)}</div>` : ""}
+        <div style="color:#${c.text};font-size:clamp(11px,1.3vw,16px);line-height:1.6">${hl(p.text, `#${c.accent}`)}</div>
       </div>`).join("");
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
       <div style="display:flex;gap:14px;margin-top:3%">${cards}</div></div>`;
   }
   if (layout === "stat") {
     const st = (item.stats && item.stats[0]) || item.stat || {};
-    const bullets = bulletLis(item.bullets);
+    const bullets = bulletLis(item.bullets, c);
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}${head}
       <div style="display:flex;gap:24px;margin-top:4%;align-items:flex-start">
         <div class="pv-glass" style="padding:18px 22px;min-width:34%">
@@ -185,14 +194,14 @@ function slideHtml(item, i, total, c, ui) {
     return `<div class="slide-card" style="background:#${c.bgDeep};color:#${c.text};justify-content:center;align-items:center;text-align:center">
       <div class="snum">${i + 1} / ${total}</div>
       <div style="font-size:90px;color:#${c.accent};line-height:0.6;margin-bottom:16px">&ldquo;</div>
-      <div style="font-size:clamp(15px,2vw,24px);font-style:italic;color:#${c.title};max-width:80%;line-height:1.3">${esc(quote)}</div>
+      <div style="font-size:clamp(15px,2vw,24px);font-style:italic;color:#${c.title};max-width:80%;line-height:1.3">${hl(quote, `#${c.accent}`)}</div>
       ${item.quoteBy ? `<div style="margin-top:14px;color:#9CA3AF;font-style:italic;font-size:12px">— ${esc(item.quoteBy)}</div>` : ""}
     </div>`;
   }
   if (layout === "two-col") {
     const mid = Math.ceil((item.bullets || []).length / 2);
-    const l = bulletLis((item.bullets || []).slice(0, mid));
-    const r = bulletLis((item.bullets || []).slice(mid));
+    const l = bulletLis((item.bullets || []).slice(0, mid), c);
+    const r = bulletLis((item.bullets || []).slice(mid), c);
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
       <div style="display:flex;gap:28px;margin-top:3%">
         <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${l}</ul>
@@ -200,11 +209,46 @@ function slideHtml(item, i, total, c, ui) {
         <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.6">${r}</ul>
       </div>${takeawayHtml(item.takeaway, c)}</div>`;
   }
-  const bullets = bulletLis(item.bullets);
+  if (layout === "timeline") {
+    const steps = (item.points || []).slice(0, 4);
+    const nodes = steps.map((st, k) => `
+      <div style="flex:1;min-width:0;text-align:center;position:relative">
+        <div style="width:44px;height:44px;border-radius:50%;background:#${c.accent};color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:16px;position:relative;z-index:1">${String(k + 1).padStart(2, "0")}</div>
+        ${st.title ? `<div style="font-weight:700;color:#${c.title};font-size:clamp(12px,1.6vw,19px);letter-spacing:-0.02em;line-height:1.15;margin-bottom:6px">${hl(st.title, `#${c.accent}`)}</div>` : ""}
+        <div style="color:#${c.text};font-size:clamp(10px,1.2vw,15px);line-height:1.5">${hl(st.text, `#${c.accent}`)}</div>
+      </div>`).join("");
+    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
+      <div style="position:relative;margin-top:5%">
+        <div style="position:absolute;top:22px;left:12%;right:12%;height:3px;background:#${c.accent}66;border-radius:2px"></div>
+        <div style="display:flex;gap:18px;position:relative">${nodes}</div>
+      </div></div>`;
+  }
+  if (layout === "split") {
+    const bullets = bulletLis(item.bullets, c);
+    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
+      <div style="display:flex;gap:24px;margin-top:3%;align-items:stretch">
+        <div class="pv-glass" style="flex:0 0 34%;display:flex;align-items:center;justify-content:center;min-height:220px;position:relative;overflow:hidden">
+          <div style="position:absolute;width:170px;height:170px;border-radius:50%;border:3px solid #${c.accent}55"></div>
+          <div style="position:absolute;width:120px;height:120px;border-radius:50%;background:#${c.accent}26"></div>
+          <div style="font-size:96px;position:relative;z-index:1">${esc(item.icon || "")}</div>
+        </div>
+        <ul style="flex:1;color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,17px);line-height:1.6;align-self:center">${bullets}</ul>
+      </div>${takeawayHtml(item.takeaway, c)}</div>`;
+  }
+  if (layout === "hero") {
+    const hero = item.hero || item.heading;
+    return `<div class="slide-card" style="background:#${c.bgDeep};color:#${c.text};justify-content:center;align-items:center;text-align:center">
+      <div class="snum">${i + 1} / ${total}</div>
+      <div style="position:absolute;width:min(46vw,340px);height:min(46vw,340px);border-radius:50%;border:4px solid #${c.accent}40;pointer-events:none"></div>
+      <div style="font-size:clamp(30px,4.6vw,60px);font-weight:800;color:#${c.title};letter-spacing:-0.02em;line-height:1.05;max-width:82%;position:relative">${hl(hero, `#${c.accent}`)}</div>
+      ${item.sub ? `<div style="margin-top:18px;font-size:clamp(12px,1.6vw,18px);font-style:italic;color:#${c.text};max-width:70%;line-height:1.5">${hl(item.sub, `#${c.accent}`)}</div>` : ""}
+    </div>`;
+  }
+  const bullets = bulletLis(item.bullets, c);
   return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}
     <div class="snum">${i + 1} / ${total}</div>
     <div style="width:44px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:12px"></div>
-    <h3 style="color:#${c.title}">${esc(item.heading)}</h3>
+    <h3 style="color:#${c.title}">${hl(item.heading, `#${c.accent}`)}</h3>
     <ul style="color:#${c.text}">${bullets}</ul>
     ${takeawayHtml(item.takeaway, c)}
   </div>`;

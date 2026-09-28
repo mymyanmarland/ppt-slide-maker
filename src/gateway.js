@@ -26,12 +26,21 @@ function deckSystemPrompt(topic, detail, count, lang) {
     "Rules for the outline:",
     "- Slide 1 of the outline is the TITLE SLIDE: a short punchy main title (max 10 words),",
     "  a one-line subtitle, and one emoji icon that represents the topic.",
-    "- Content slides: short heading (max 8 words) and 4 to 5 informative bullets.",
-    "- EACH BULLET IS A FULL SENTENCE (12-18 words) with a concrete example, number, or",
-    "  comparison where possible. Never write one-word or fragment bullets — they bore the reader.",
+    "- Content slides: short heading (max 8 words) and 3 to 5 punchy bullets.",
+    "- EACH BULLET IS ONE PUNCHY DISPLAY LINE (8-12 words) — scannable at a glance,",
+    "  with a concrete example, number, or comparison. Slides must NOT look like walls",
+    "  of text. Put the deeper explanation (2-3 sentences) in \"notes\" (speaker notes),",
+    "  never on the slide itself.",
     "- The last content slide is a strong closing / call-to-action slide.",
-    "- Also write 1-2 sentences of speaker notes per slide.",
+    "- Also write 2-3 sentences of speaker notes per slide (the detail lives here).",
     d ? `- Extra context from the user: ${d}` : "",
+    "",
+    "HIGHLIGHT KEY PHRASES (critical for visual rhythm — never skip):",
+    "- Wrap the 1-2 MOST IMPORTANT phrases of EVERY slide in double equals: ==like this==.",
+    "  They render in the accent color + bold, so the eye lands on them first.",
+    "- Use it in headings, bullets, card titles/text, takeaways, quotes, hero text.",
+    "- Never highlight more than 2 phrases per slide; never highlight a whole sentence.",
+    '- Example bullet: {"icon":"⚡","text":"Docker image တစ်ခုတည်ဆောက်ပြီး ==နေရာတိုင်းမှာ== run နိုင်သည်"}.',
     "",
     "MEANINGFUL TITLES (critical — never skip this rule):",
     "- Every heading, card title, and stat label must be a COMPLETE, MEANINGFUL phrase",
@@ -48,19 +57,31 @@ function deckSystemPrompt(topic, detail, count, lang) {
     '  "bullets": [{"icon":"⚡","text":"Full informative sentence …"}, …].',
     '- Give every content slide a "takeaway": ONE punchy sentence (max 20 words) — the single',
     "  key message of the slide, specific and memorable. It renders as a highlighted strip.",
-    '- Give every slide a "layout", varying across the deck:',
-    '  • "bullets" — heading + bullet list (default, use for ~a third of the slides)',
+    '- Give every slide a "layout" — visual variety is MANDATORY, never a text-only deck:',
+    '  • "bullets" — heading + bullet list. Use for at most HALF the slides.',
+    '  • "timeline" — a horizontal 3-4 step process: how it works, workflow, history, evolution.',
+    '    Fill "points": [{"title":"Step name (max 6 words)","text":"one punchy line, max 12 words"}, …] (3 or 4).',
+    '  • "split" — giant icon art panel on the left, bullets on the right.',
+    '    Best for "what is X" / definition slides with a strong single icon.',
+    '  • "hero" — ONE massive statement or number as the entire slide message.',
+    '    Fill "hero": "==90%== of failures are config errors" (max 10 words) and',
+    '    "sub": "one supporting line (max 15 words)". Use EXACTLY once per deck,',
+    "    for the single most striking insight.",
     '  • "cards" — 3 feature cards in a row, like a modern SaaS pitch deck.',
     '    Fill "points": [{"icon":"🔗","title":"Complete meaningful heading","text":"1-2 sentences, up to 30 words, with a concrete detail or example"}, …] (exactly 3).',
     "    Titles must follow the MEANINGFUL TITLES rule — never a fragment.",
     '  • "stats" — a 2x2 grid of big striking numbers on glass cards.',
     '    Fill "stats": [{"value":"30%","label":"full meaningful phrase saying what this number means"}, …] (2 to 4 items).',
-    '    Use for key figures, survey results, market numbers.',
+    '    Use ONLY for real, striking figures from the topic — percentages, market size, adoption',
+    '    numbers, survey results. If the topic has no meaningful numbers, use a DIFFERENT layout;',
+    '    NEVER invent trivial counts like 1/2/3 just to fill a stats grid.',
     '  • "stat" — legacy single big number; prefer "stats" instead.',
     '  • "two-col" — heading + bullets split into two balanced columns.',
     '  • "quote" — one memorable quote/statement as the hero; put it in "quote": "..."',
     '    plus optional "quoteBy": "who said it". Use at most once or twice.',
-    "- Use at least 1 \"stats\" grid and at least 1 \"cards\" layout in every deck.",
+    "- COMPOSITION RULE: every deck must use at least 3 DIFFERENT layouts.",
+    '  Include at least 1 "timeline" or "split", exactly 1 "hero",',
+    '  at least 1 "stats" grid and at least 1 "cards" layout.',
     "",
     "Output STRICT JSON only — no explanations, no markdown fences. The JSON shape:",
     '{ "title": "...", "subtitle": "...", "icon": "🚀", "slides": [',
@@ -68,6 +89,7 @@ function deckSystemPrompt(topic, detail, count, lang) {
     '    "icon": "📊", "layout": "bullets",',
     '    "stats": [{"value": "", "label": ""}],',
     '    "points": [{"icon": "", "title": "", "text": ""}],',
+    '    "hero": "", "sub": "",',
     '    "stat": {"value": "", "label": ""}, "quote": "", "quoteBy": "" }',
     "] }",
     `Topic: ${t}`,
@@ -149,7 +171,7 @@ function extractDeckJson(text) {
   }
 }
 
-const LAYOUTS = ["bullets", "cards", "stats", "stat", "two-col", "quote"];
+const LAYOUTS = ["bullets", "cards", "stats", "stat", "two-col", "quote", "timeline", "split", "hero"];
 const EMOJI_RE = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/;
 
 function cleanIcon(v) {
@@ -224,13 +246,15 @@ function normalizeDeck(raw, count) {
         },
         quote: String(s?.quote || "").trim().slice(0, 300),
         quoteBy: String(s?.quoteBy || "").trim().slice(0, 120),
+        hero: String(s?.hero || "").trim().slice(0, 140),
+        sub: String(s?.sub || "").trim().slice(0, 200),
       };
     })
-    .filter((s) => s.heading || s.bullets.length > 0 || s.quote || s.points.length || s.stats.length);
+    .filter((s) => s.heading || s.bullets.length > 0 || s.quote || s.points.length || s.stats.length || s.hero);
   // enforce exact slide count: trim extras, pad with empty slots if short
   const fixed = norm.slice(0, count);
   while (fixed.length < count)
-    fixed.push({ heading: "", bullets: [], takeaway: "", notes: "", icon: "", layout: "bullets", stats: [], points: [], stat: { value: "", label: "" }, quote: "", quoteBy: "" });
+    fixed.push({ heading: "", bullets: [], takeaway: "", notes: "", icon: "", layout: "bullets", stats: [], points: [], hero: "", sub: "", stat: { value: "", label: "" }, quote: "", quoteBy: "" });
   return {
     title: String(raw.title || "").trim().slice(0, 140),
     subtitle: String(raw.subtitle || "").trim().slice(0, 200),

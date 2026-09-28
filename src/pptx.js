@@ -71,7 +71,9 @@ function numberPill(slide, pptx, theme, n) {
 }
 
 function headingBlock(slide, pptx, theme, heading) {
-  slide.addText(heading || "", {
+  const base = { ...T.h2(theme.title), fontFace: fontFor(heading) };
+  const runs = richText(heading || "", theme, base);
+  slide.addText(runs.length ? runs : "", {
     x: 1.5, y: 0.32, w: 11.3, h: 1.1,
     ...T.h2(theme.title), fontFace: fontFor(heading), valign: "middle",
   });
@@ -97,18 +99,18 @@ function bulletRuns(bullets, theme, fontSize = 18) {
       return { icon, text };
     })
     .filter((b) => b.text)
-    .map((b, i, arr) => ({
-      text: (b.icon ? b.icon + "  " : "") + b.text,
-      options: {
-        fontSize,
-        color: theme.text,
-        fontFace: fontFor(b.text),
-        bullet: { code: "2022", color: theme.accent, indent: 20 },
-        paraSpaceAfter: 8,
-        lineSpacingMultiple: 1.6,
-        breakLine: i < arr.length - 1,
-      },
-    }));
+    .flatMap((b) =>
+      richText(
+        (b.icon ? b.icon + "  " : "") + b.text,
+        theme,
+        { fontSize, color: theme.text, fontFace: fontFor(b.text) },
+        {
+          bullet: { code: "2022", color: theme.accent, indent: 20 },
+          paraSpaceAfter: 8,
+          lineSpacingMultiple: 1.6,
+        }
+      )
+    );
 }
 
 // Text of a bullet whether it is a string or {icon, text}.
@@ -117,6 +119,25 @@ function btext(b) {
 }
 function bicon(b) {
   return b && typeof b === "object" ? String(b.icon || "") : "";
+}
+
+// Keyword highlighting: "==phrase==" markers become accent-colored bold runs.
+// Returns an array of {text, options} for addText; runs merge into ONE paragraph
+// via breakLine:false on all but the last entry (paragraph opts live on the first).
+function richText(text, theme, runBase, paraOpts = {}) {
+  const parts = String(text || "").split(/(==.+?==)/g).filter((p) => p !== "");
+  return parts.map((p, i) => {
+    const hl = p.length > 4 && p.startsWith("==") && p.endsWith("==");
+    return {
+      text: hl ? p.slice(2, -2) : p,
+      options: {
+        ...runBase,
+        ...(hl ? { color: theme.accent, bold: true } : {}),
+        ...(i === 0 ? paraOpts : {}),
+        ...(i < parts.length - 1 ? { breakLine: false } : {}),
+      },
+    };
+  });
 }
 
 // Highlighted takeaway strip: one punchy key message at the bottom of a slide.
@@ -128,19 +149,27 @@ function takeawayStrip(slide, pptx, theme, text, x, y, w) {
     fill: { color: theme.glass || "FFFFFF", transparency: 88 },
     line: { color: theme.accent, width: 1.25 },
   });
-  slide.addText("✦  " + text, {
+  const base = {
+    fontSize: 16, italic: true, color: theme.title,
+    fontFace: fontFor(text), lineSpacingMultiple: 1.1,
+  };
+  const runs = richText(text, theme, base);
+  if (runs.length) runs[0].text = "✦  " + runs[0].text;
+  slide.addText(runs.length ? runs : "", {
     x: x + 0.4, y: y + 0.02, w: w - 0.8, h: h - 0.04, valign: "middle",
-    fontSize: 16, italic: true, color: theme.title, fontFace: fontFor(text), lineSpacingMultiple: 1.1,
+    ...base,
   });
 }
 
 function addFooter(slide, pptx, theme, left, right) {
+  // footers never show highlight markers
+  const clean = String(left || "").replace(/==/g, "");
   slide.addShape(pptx.ShapeType.rect, {
     x: 0.5, y: 6.94, w: 12.33, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
   });
-  slide.addText(String(left || ""), {
+  slide.addText(clean, {
     x: 0.5, y: 7.02, w: 8, h: 0.3,
-    ...T.caption(), fontFace: fontFor(left),
+    ...T.caption(), fontFace: fontFor(clean),
   });
   slide.addText(String(right || ""), {
     x: 11.5, y: 7.02, w: 1.33, h: 0.3, align: "right",
@@ -184,12 +213,12 @@ function addTitleSlide(pptx, theme, deck, lang) {
   s.addShape(pptx.ShapeType.rect, {
     x: 2.42, y: 2.2, w: 3.2, h: 0.025, fill: { color: theme.band }, line: { color: theme.band },
   });
-  s.addText(deck.title || "", {
+  s.addText(richText(deck.title || "", theme, { ...T.h1(theme.title), fontFace: fontFor(deck.title) }), {
     x: 0.9, y: 2.42, w: 8.6, h: 2.35,
     ...T.h1(theme.title), fontFace: fontFor(deck.title),
   });
   if (deck.subtitle) {
-    s.addText(deck.subtitle, {
+    s.addText(richText(deck.subtitle, theme, { ...T.h3(theme.title), fontFace: fontFor(deck.subtitle) }), {
       x: 0.9, y: 4.9, w: 8.6, h: 1.2,
       ...T.h3(theme.title), fontFace: fontFor(deck.subtitle),
     });
@@ -280,22 +309,38 @@ function addCardsSlide(pptx, theme, deck, idx, item) {
   pts.slice(0, n).forEach((p, k) => {
     const x = 0.95 + k * (w + gap), y = 2.0, h = 4.35;
     glassCard(s, pptx, theme, x, y, w, h, 0.16);
-    let ty = y + 0.35;
+    // top accent bar
+    s.addShape(pptx.ShapeType.rect, {
+      x: x + 0.32, y: y + 0.26, w: 0.55, h: 0.06,
+      fill: { color: theme.accent }, line: { color: theme.accent },
+    });
+    let ty = y + 0.5;
     if (p.icon) {
-      s.addText(p.icon, { x, y: ty, w, h: 0.7, align: "center", fontSize: 34, fontFace: "Segoe UI Emoji" });
-      ty += 0.75;
+      // icon in a soft accent chip
+      const cs = 0.8, cxp = x + w / 2;
+      s.addShape(pptx.ShapeType.ellipse, {
+        x: cxp - cs / 2, y: ty, w: cs, h: cs,
+        fill: { color: theme.accent, transparency: 78 }, line: { color: theme.accent, transparency: 100 },
+      });
+      s.addText(p.icon, {
+        x: cxp - cs / 2, y: ty + 0.03, w: cs, h: cs, align: "center",
+        fontSize: 34, fontFace: "Segoe UI Emoji",
+      });
+      ty += cs + 0.2;
     }
     if (p.title) {
-      s.addText(p.title, {
-        x: x + 0.3, y: ty, w: w - 0.6, h: 0.9, align: "center",
-        ...T.h3(theme.title), fontFace: fontFor(p.title),
+      const tBase = { ...T.h3(theme.title), fontFace: fontFor(p.title) };
+      s.addText(richText(p.title, theme, tBase), {
+        x: x + 0.3, y: ty, w: w - 0.6, h: 1.1, align: "center",
+        ...tBase, valign: "top",
       });
-      ty += 0.95;
+      ty += 1.15;
     }
     if (p.text) {
-      s.addText(p.text, {
+      const bBase = { fontSize: 16, color: theme.text, fontFace: fontFor(p.text), lineSpacingMultiple: 1.6 };
+      s.addText(richText(p.text, theme, bBase), {
         x: x + 0.3, y: ty, w: w - 0.6, h: h - (ty - y) - 0.3, align: "center",
-        fontSize: 16, color: theme.text, fontFace: fontFor(p.text), lineSpacingMultiple: 1.6, valign: "top",
+        ...bBase, valign: "top",
       });
     }
   });
@@ -385,7 +430,7 @@ function addQuoteSlide(pptx, theme, deck, idx, item) {
     x: 1.5, y: 1.15, w: 10.3, h: 1.2, align: "center",
     fontSize: 110, bold: true, color: theme.accent, fontFace: "Calibri",
   });
-  s.addText(quote, {
+  s.addText(richText(quote, theme, { ...T.quote(theme.title), fontFace: fontFor(quote) }), {
     x: 2.2, y: 2.75, w: 8.9, h: 2.1, align: "center",
     ...T.quote(theme.title), fontFace: fontFor(quote),
   });
@@ -400,6 +445,119 @@ function addQuoteSlide(pptx, theme, deck, idx, item) {
   }
   if (item.notes) s.addNotes(item.notes);
   addFooter(s, pptx, theme, item.heading, `${idx + 1} / ${deck.slides.length}`);
+}
+
+// ---- NEW: timeline — horizontal process with numbered nodes + connector ----
+function addTimelineSlide(pptx, theme, deck, idx, item) {
+  const s = pptx.addSlide();
+  s.background = { color: theme.bg };
+  ambient(s, pptx, theme);
+  topBar(s, pptx, theme);
+  numberPill(s, pptx, theme, idx + 1);
+  headingBlock(s, pptx, theme, item.heading);
+  const steps = (item.points || []).slice(0, 4);
+  const n = steps.length;
+  const gap = 0.5, x0 = 0.95, avail = 11.43;
+  const w = (avail - (n - 1) * gap) / n;
+  const nodeY = 2.55, nodeD = 0.66;
+  // connector line behind the nodes
+  s.addShape(pptx.ShapeType.rect, {
+    x: x0 + w / 2, y: nodeY + nodeD / 2 - 0.02,
+    w: (x0 + avail - w / 2) - (x0 + w / 2), h: 0.04,
+    fill: { color: theme.accent, transparency: 55 }, line: { color: theme.accent, transparency: 100 },
+  });
+  steps.forEach((st, k) => {
+    const x = x0 + k * (w + gap), cx = x + w / 2;
+    s.addShape(pptx.ShapeType.ellipse, {
+      x: cx - nodeD / 2, y: nodeY, w: nodeD, h: nodeD,
+      fill: { color: theme.accent }, line: { color: theme.accent },
+    });
+    s.addText(String(k + 1).padStart(2, "0"), {
+      x: cx - nodeD / 2, y: nodeY, w: nodeD, h: nodeD, align: "center",
+      fontSize: 19, bold: true, color: isLight(theme) ? "FFFFFF" : theme.bg, fontFace: "Calibri",
+    });
+    if (st.title) {
+      const tBase = { fontSize: 19, bold: true, color: theme.title, charSpacing: tight(19), lineSpacingMultiple: 1.15, fontFace: fontFor(st.title) };
+      s.addText(richText(st.title, theme, tBase), {
+        x, y: nodeY + nodeD + 0.28, w, h: 0.85, align: "center",
+        ...tBase, valign: "top",
+      });
+    }
+    if (st.text) {
+      const bBase = { fontSize: 15, color: theme.text, lineSpacingMultiple: 1.5, fontFace: fontFor(st.text) };
+      s.addText(richText(st.text, theme, bBase), {
+        x, y: nodeY + nodeD + 1.2, w, h: 1.65, align: "center",
+        ...bBase, valign: "top",
+      });
+    }
+  });
+  if (item.notes) s.addNotes(item.notes);
+  addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
+}
+
+// ---- NEW: split — giant icon art panel left, bullets right ----
+function addSplitSlide(pptx, theme, deck, idx, item) {
+  const s = pptx.addSlide();
+  s.background = { color: theme.bg };
+  ambient(s, pptx, theme);
+  topBar(s, pptx, theme);
+  numberPill(s, pptx, theme, idx + 1);
+  headingBlock(s, pptx, theme, item.heading);
+  const px = 1.3, py = 1.95, pw = 4.2, ph = 3.9;
+  glassCard(s, pptx, theme, px, py, pw, ph, 0.18);
+  // spotlight rings behind the icon
+  s.addShape(pptx.ShapeType.ellipse, {
+    x: px + pw / 2 - 1.2, y: py + 0.5, w: 2.4, h: 2.4,
+    fill: { color: theme.bg, transparency: 100 }, line: { color: theme.accent, width: 2.5, transparency: 35 },
+  });
+  s.addShape(pptx.ShapeType.ellipse, {
+    x: px + pw / 2 - 0.88, y: py + 0.82, w: 1.76, h: 1.76,
+    fill: { color: theme.accent, transparency: 80 }, line: { color: theme.accent, transparency: 100 },
+  });
+  if (item.icon) {
+    s.addText(item.icon, {
+      x: px, y: py + 0.62, w: pw, h: 2.16, align: "center",
+      fontSize: 110, fontFace: "Segoe UI Emoji",
+    });
+  }
+  const runs = bulletRuns(item.bullets, theme, 17);
+  if (runs.length) s.addText(runs, { x: 6.1, y: 1.95, w: 6.0, h: 3.7, valign: "middle" });
+  const tw = item.takeaway && item.takeaway.trim();
+  if (tw) takeawayStrip(s, pptx, theme, tw, 1.3, 5.98, 10.73);
+  if (item.notes) s.addNotes(item.notes);
+  addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
+}
+
+// ---- NEW: hero — one massive statement/number as the whole message ----
+function addHeroSlide(pptx, theme, deck, idx, item) {
+  const s = pptx.addSlide();
+  s.background = { color: theme.bgDeep };
+  ambient(s, pptx, theme);
+  topBar(s, pptx, theme);
+  numberPill(s, pptx, theme, idx + 1);
+  // giant accent ring as the backdrop
+  s.addShape(pptx.ShapeType.ellipse, {
+    x: 5.16, y: 1.3, w: 3.0, h: 3.0,
+    fill: { color: theme.bgDeep, transparency: 100 }, line: { color: theme.accent, width: 3, transparency: 25 },
+  });
+  const hero = item.hero || item.heading;
+  const base = {
+    fontSize: 60, bold: true, color: theme.title,
+    charSpacing: tight(60), lineSpacingMultiple: 1.05, fontFace: fontFor(hero),
+  };
+  s.addText(richText(hero, theme, base), {
+    x: 1.6, y: 2.0, w: 10.1, h: 2.6, align: "center",
+    ...base, valign: "middle",
+  });
+  if (item.sub) {
+    const subBase = { fontSize: 18, italic: true, color: theme.text, lineSpacingMultiple: 1.5, fontFace: fontFor(item.sub) };
+    s.addText(richText(item.sub, theme, subBase), {
+      x: 2.6, y: 4.85, w: 8.1, h: 1.2, align: "center",
+      ...subBase, valign: "top",
+    });
+  }
+  if (item.notes) s.addNotes(item.notes);
+  addFooter(s, pptx, theme, deck.title, `${idx + 1} / ${deck.slides.length}`);
 }
 
 function addClosingSlide(pptx, theme, deck, lang) {
@@ -421,9 +579,10 @@ function addClosingSlide(pptx, theme, deck, lang) {
   s.addShape(pptx.ShapeType.rect, {
     x: 6.16, y: 4.45, w: 1.0, h: 0.07, fill: { color: theme.accent }, line: { color: theme.accent },
   });
-  s.addText(deck.title || "", {
+  const ctBase = { fontSize: 18, color: theme.text, fontFace: fontFor(deck.title), lineSpacingMultiple: 1.6 };
+  s.addText(richText(deck.title || "", theme, ctBase), {
     x: 1.5, y: 4.7, w: 10.33, h: 1.0, align: "center",
-    fontSize: 18, color: theme.text, fontFace: fontFor(deck.title), lineSpacingMultiple: 1.6,
+    ...ctBase,
   });
   const q = lang === "en" ? "Questions & Discussion" : "မေးခွန်းများ နှင့် ဆွေးနွေးခန်း";
   s.addText(q, {
@@ -457,6 +616,20 @@ function applyTransitions(pptxBuffer) {
 
 // ---- main -------------------------------------------------------------------
 
+// Pick the effective layout, falling back gracefully when data is missing.
+function resolveLayout(item) {
+  const L = item.layout;
+  if ((L === "stats" || L === "stat") && item.stats.length >= 2) return "stats";
+  if ((L === "stat" || L === "stats") && (item.stats.length === 1 || (item.stat && item.stat.value))) return "stat";
+  if (L === "timeline" && item.points.length >= 2) return "timeline";
+  if (L === "split" && item.bullets.length >= 2 && item.icon) return "split";
+  if (L === "hero" && (item.hero || item.heading)) return "hero";
+  if (L === "cards" && (item.points.length >= 2 || item.bullets.length >= 2)) return "cards";
+  if (L === "quote" && (item.quote || item.bullets.length)) return "quote";
+  if (L === "two-col" && item.bullets.length > 2) return "two-col";
+  return "bullets";
+}
+
 async function buildPptx(deck, themeKey, lang = "my") {
   const theme = THEMES[themeKey] ? THEMES[themeKey] : THEMES["navy-gold"];
   const pptx = new PptxGenJS();
@@ -468,19 +641,12 @@ async function buildPptx(deck, themeKey, lang = "my") {
 
   addTitleSlide(pptx, theme, deck, lang);
   deck.slides.forEach((item, i) => {
-    const layout = item.layout === "stats" && item.stats.length >= 2
-      ? "stats"
-      : (item.layout === "stat" || item.layout === "stats") && (item.stats.length === 1 || (item.stat && item.stat.value))
-        ? "stat"
-        : item.layout === "cards" && (item.points.length >= 2 || item.bullets.length >= 2)
-          ? "cards"
-          : item.layout === "quote" && (item.quote || item.bullets.length)
-            ? "quote"
-            : item.layout === "two-col" && item.bullets.length > 2
-              ? "two-col"
-              : "bullets";
+    const layout = resolveLayout(item);
     if (layout === "stats") addStatsSlide(pptx, theme, deck, i, item);
     else if (layout === "stat") addStatSlide(pptx, theme, deck, i, item);
+    else if (layout === "timeline") addTimelineSlide(pptx, theme, deck, i, item);
+    else if (layout === "split") addSplitSlide(pptx, theme, deck, i, item);
+    else if (layout === "hero") addHeroSlide(pptx, theme, deck, i, item);
     else if (layout === "cards") addCardsSlide(pptx, theme, deck, i, item);
     else if (layout === "quote") addQuoteSlide(pptx, theme, deck, i, item);
     else if (layout === "two-col") addTwoColSlide(pptx, theme, deck, i, item);
