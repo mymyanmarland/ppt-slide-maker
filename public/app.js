@@ -65,7 +65,7 @@ const I18N = {
 
 let uiLang = localStorage.getItem("pptm-ui") || "my";
 let THEMES = [];
-let selectedTheme = "navy-gold";
+let selectedTheme = "midnight-glass";
 let currentDeckId = null;
 
 const $ = (id) => document.getElementById(id);
@@ -105,7 +105,9 @@ function esc(s) {
 }
 
 function layoutOf(item) {
-  if (item.layout === "stat" && item.stat && item.stat.value) return "stat";
+  if (item.layout === "stats" && (item.stats || []).length >= 2) return "stats";
+  if ((item.layout === "stat" || item.layout === "stats") && ((item.stats || []).length === 1 || (item.stat && item.stat.value))) return "stat";
+  if (item.layout === "cards" && ((item.points || []).length >= 2 || (item.bullets || []).length >= 2)) return "cards";
   if (item.layout === "quote" && (item.quote || (item.bullets || []).length)) return "quote";
   if (item.layout === "two-col" && (item.bullets || []).length > 2) return "two-col";
   return "bullets";
@@ -121,13 +123,39 @@ function slideHtml(item, i, total, c, ui) {
     ? `<div style="position:absolute;right:4%;top:18%;font-size:110px;opacity:0.16;pointer-events:none">${esc(item.icon)}</div>`
     : "";
 
+  if (layout === "stats") {
+    const cards = (item.stats || []).slice(0, 4).map((st) => `
+      <div class="pv-glass" style="flex:1;padding:14px 16px;min-width:0">
+        <div style="width:22px;height:4px;background:#${c.accent};border-radius:2px;margin-bottom:10px"></div>
+        <div style="font-size:clamp(24px,3vw,40px);font-weight:800;color:#${c.accent};line-height:1">${esc(st.value)}</div>
+        <div style="margin-top:8px;font-size:clamp(10px,1.2vw,14px);color:#${c.muted};line-height:1.4">${esc(st.label)}</div>
+      </div>`).join("");
+    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
+      <div style="display:flex;gap:14px;margin-top:3%;flex-wrap:wrap">${cards}</div></div>`;
+  }
+  if (layout === "cards") {
+    const pts = (item.points || []).length >= 2 ? item.points.slice(0, 3)
+      : (item.bullets || []).slice(0, 3).map((b) => {
+          const m = String(b).split(/[:—–-]\s(.+)/);
+          return { icon: item.icon, title: m.length > 2 ? m[0].trim() : "", text: m.length > 2 ? m[1].trim() : b };
+        });
+    const cards = pts.map((p) => `
+      <div class="pv-glass" style="flex:1;padding:16px;min-width:0;text-align:center">
+        ${p.icon ? `<div style="font-size:30px;margin-bottom:8px">${esc(p.icon)}</div>` : ""}
+        ${p.title ? `<div style="font-weight:700;color:#${c.title};font-size:clamp(12px,1.4vw,16px);margin-bottom:6px">${esc(p.title)}</div>` : ""}
+        <div style="color:#${c.muted};font-size:clamp(10px,1.25vw,14px);line-height:1.5">${esc(p.text)}</div>
+      </div>`).join("");
+    return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${head}
+      <div style="display:flex;gap:14px;margin-top:3%">${cards}</div></div>`;
+  }
   if (layout === "stat") {
+    const st = (item.stats && item.stats[0]) || item.stat || {};
     const bullets = (item.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("");
     return `<div class="slide-card" style="background:#${c.bg};color:#${c.text}">${iconBg}${head}
       <div style="display:flex;gap:24px;margin-top:4%;align-items:flex-start">
-        <div style="background:#${c.bgDeep};border-left:5px solid #${c.accent};border-radius:10px;padding:18px 22px;min-width:34%">
-          <div style="font-size:clamp(34px,4.5vw,58px);font-weight:800;color:#${c.accent};line-height:1">${esc(item.stat.value)}</div>
-          <div style="margin-top:8px;font-size:clamp(11px,1.3vw,15px);color:#${c.muted}">${esc(item.stat.label)}</div>
+        <div class="pv-glass" style="padding:18px 22px;min-width:34%">
+          <div style="font-size:clamp(34px,4.5vw,58px);font-weight:800;color:#${c.accent};line-height:1">${esc(st.value)}</div>
+          <div style="margin-top:8px;font-size:clamp(11px,1.3vw,15px);color:#${c.muted}">${esc(st.label)}</div>
         </div>
         <ul style="color:#${c.text};margin:0;padding-left:20px;font-size:clamp(11px,1.4vw,16px);line-height:1.7">${bullets}</ul>
       </div></div>`;
