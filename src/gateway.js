@@ -35,18 +35,24 @@ function deckSystemPrompt(topic, detail, count, lang) {
     "VISUAL VARIETY (important — avoid text-only monotony):",
     '- Give every slide an "icon": ONE single emoji that visually represents its heading (e.g. 🚀 📊 💡 🌱).',
     '- Give every slide a "layout", varying across the deck:',
-    '  • "bullets" — heading + bullet list (default, use for ~half the slides)',
-    '  • "stat" — one big striking number/fact + its label + 2 short bullets.',
-    '    Also fill "stat": {"value": "70%", "label": "what this number means"}. Use for key figures.',
+    '  • "bullets" — heading + bullet list (default, use for ~a third of the slides)',
+    '  • "cards" — 3 feature cards in a row, like a modern SaaS pitch deck.',
+    '    Fill "points": [{"icon":"🔗","title":"Short title","text":"One crisp line, max 15 words"}, …] (exactly 3).',
+    '  • "stats" — a 2x2 grid of big striking numbers on glass cards.',
+    '    Fill "stats": [{"value":"30%","label":"what this number means"}, …] (2 to 4 items).',
+    '    Use for key figures, survey results, market numbers.',
+    '  • "stat" — legacy single big number; prefer "stats" instead.',
     '  • "two-col" — heading + bullets split into two balanced columns.',
     '  • "quote" — one memorable quote/statement as the hero; put it in "quote": "..."',
     '    plus optional "quoteBy": "who said it". Use at most once or twice.',
-    "- Use at least 2 \"stat\" slides and at least 1 non-bullets layout in every deck.",
+    "- Use at least 1 \"stats\" grid and at least 1 \"cards\" layout in every deck.",
     "",
     "Output STRICT JSON only — no explanations, no markdown fences. The JSON shape:",
     '{ "title": "...", "subtitle": "...", "icon": "🚀", "slides": [',
     '  { "heading": "...", "bullets": ["...", "..."], "notes": "...",',
     '    "icon": "📊", "layout": "bullets",',
+    '    "stats": [{"value": "", "label": ""}],',
+    '    "points": [{"icon": "", "title": "", "text": ""}],',
     '    "stat": {"value": "", "label": ""}, "quote": "", "quoteBy": "" }',
     "] }",
     `Topic: ${t}`,
@@ -128,12 +134,33 @@ function extractDeckJson(text) {
   }
 }
 
-const LAYOUTS = ["bullets", "stat", "two-col", "quote"];
+const LAYOUTS = ["bullets", "cards", "stats", "stat", "two-col", "quote"];
 const EMOJI_RE = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/;
 
 function cleanIcon(v) {
   const m = String(v || "").match(EMOJI_RE);
   return m ? m[0] : "";
+}
+
+function cleanPoints(v) {
+  return (Array.isArray(v) ? v : [])
+    .map((p) => ({
+      icon: cleanIcon(p?.icon),
+      title: String(p?.title || "").trim().slice(0, 80),
+      text: String(p?.text || "").trim().slice(0, 160),
+    }))
+    .filter((p) => p.title || p.text)
+    .slice(0, 3);
+}
+
+function cleanStats(v) {
+  return (Array.isArray(v) ? v : [])
+    .map((s) => ({
+      value: String(s?.value || "").trim().slice(0, 24),
+      label: String(s?.label || "").trim().slice(0, 120),
+    }))
+    .filter((s) => s.value)
+    .slice(0, 4);
 }
 
 function normalizeDeck(raw, count) {
@@ -143,6 +170,15 @@ function normalizeDeck(raw, count) {
     .map((s) => {
       const layout = LAYOUTS.includes(s?.layout) ? s.layout : "bullets";
       const stat = s?.stat && typeof s.stat === "object" ? s.stat : {};
+      const stats = cleanStats(s?.stats);
+      // legacy single stat -> stats array
+      const legacy = String(stat.value || "").trim();
+      if (!stats.length && legacy) {
+        stats.push({
+          value: legacy.slice(0, 24),
+          label: String(stat.label || "").trim().slice(0, 120),
+        });
+      }
       return {
         heading: String(s?.heading || "").trim().slice(0, 120),
         bullets: (Array.isArray(s?.bullets) ? s.bullets : [])
@@ -152,19 +188,21 @@ function normalizeDeck(raw, count) {
         notes: String(s?.notes || "").trim().slice(0, 600),
         icon: cleanIcon(s?.icon),
         layout,
+        stats,
+        points: cleanPoints(s?.points),
         stat: {
-          value: String(stat.value || "").trim().slice(0, 24),
+          value: legacy.slice(0, 24),
           label: String(stat.label || "").trim().slice(0, 120),
         },
         quote: String(s?.quote || "").trim().slice(0, 300),
         quoteBy: String(s?.quoteBy || "").trim().slice(0, 120),
       };
     })
-    .filter((s) => s.heading || s.bullets.length > 0 || s.quote);
+    .filter((s) => s.heading || s.bullets.length > 0 || s.quote || s.points.length || s.stats.length);
   // enforce exact slide count: trim extras, pad with empty slots if short
   const fixed = norm.slice(0, count);
   while (fixed.length < count)
-    fixed.push({ heading: "", bullets: [], notes: "", icon: "", layout: "bullets", stat: { value: "", label: "" }, quote: "", quoteBy: "" });
+    fixed.push({ heading: "", bullets: [], notes: "", icon: "", layout: "bullets", stats: [], points: [], stat: { value: "", label: "" }, quote: "", quoteBy: "" });
   return {
     title: String(raw.title || "").trim().slice(0, 140),
     subtitle: String(raw.subtitle || "").trim().slice(0, 200),
